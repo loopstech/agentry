@@ -4,20 +4,24 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Theme } from "../themes/types";
+import { accentStyle, themeFor } from "../themes";
 import { countSessions, needsUser } from "../types";
 import { plural } from "../format";
-import { setPanelOpen, useConfig, useNow, useRequestArrivals, useSessions } from "../useSessions";
+import { openSettings, setPanelOpen, useConfig, useNow, useRequestArrivals, useSessions } from "../useSessions";
 import { SessionRow } from "./SessionRow";
-import { Alert, ChevronUp, Muted, Sound } from "./Icons";
+import { Alert, ChevronUp, Gear, Muted, Sound } from "./Icons";
 
 /** Transparent margin around the content, so CSS shadows aren't clipped. */
 const FRAME = 14;
 const PANEL_WIDTH = 520;
 const DRAG_THRESHOLD = 4;
 const PILL_AVATARS = 4;
+/** Hover-to-open: how long the pointer rests on the pill, and how long it can
+ *  be away from the panel before it closes again. */
+const HOVER_OPEN_MS = 350;
+const HOVER_CLOSE_MS = 900;
 
-export function Island({ theme }: { theme: Theme }) {
+export function Island() {
   const { sessions, server } = useSessions();
   const [expanded, setExpanded] = useState(false);
   const [maxPanelHeight, setMaxPanelHeight] = useState<number | null>(null);
@@ -35,6 +39,13 @@ export function Island({ theme }: { theme: Theme }) {
   const pulse = usePulse(counts.needs);
   const { config, setMuted } = useConfig();
   const muted = config?.muted ?? false;
+  const theme = themeFor(config);
+  const hover = useHoverToOpen(
+    config?.appearance.hoverToOpen ?? false,
+    expanded,
+    setExpanded,
+    sessions.some((s) => s.pending.length > 0),
+  );
 
   // Open the panel when a request arrives (the user can turn this off).
   useRequestArrivals(
@@ -74,8 +85,8 @@ export function Island({ theme }: { theme: Theme }) {
   const summary = theme.strings.pillSummary(counts);
 
   return (
-    <div className={`frame ${theme.className}`} style={{ padding: FRAME }}>
-      <div ref={contentRef} className="content">
+    <div className={`frame ${theme.className}`} style={{ padding: FRAME, ...accentStyle(theme, config) }}>
+      <div ref={contentRef} className="content" {...hover}>
         {!expanded ? (
           <button
             className={`pill${counts.needs ? " pill-needs" : ""}${pulse ? " pill-pulse" : ""}`}
@@ -118,6 +129,9 @@ export function Island({ theme }: { theme: Theme }) {
             <header className="panel-header" {...drag} onClick={undefined}>
               <span className="panel-title">Agentry</span>
               <span className="panel-count">{plural(sessions.length, "session", "sessions")}</span>
+              <button className="icon-button icon-button-filled" aria-label="Settings" title="Settings" onClick={openSettings}>
+                <Gear />
+              </button>
               <button
                 className={`icon-button icon-button-filled${muted ? " is-on" : ""}`}
                 aria-pressed={muted}
@@ -211,6 +225,43 @@ function useDragOrClick(onClick: () => void) {
   }, [onClick]);
 
   return { onMouseDown, onMouseMove, onMouseUp, onClick: onClickHandler };
+}
+
+/** Pointer handlers for "open the panel on hover": opens after resting on
+ *  the pill, closes after leaving the panel, unless a request is waiting or
+ *  the user is typing. */
+function useHoverToOpen(enabled: boolean, expanded: boolean, setExpanded: (v: boolean) => void, busy: boolean) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openedByHover = useRef(false);
+  const clear = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => clear, []);
+  if (!enabled) return {};
+  return {
+    onMouseEnter: () => {
+      clear();
+      if (!expanded) {
+        timer.current = setTimeout(() => {
+          openedByHover.current = true;
+          setExpanded(true);
+        }, HOVER_OPEN_MS);
+      }
+    },
+    onMouseLeave: () => {
+      clear();
+      if (expanded && openedByHover.current && !busy) {
+        timer.current = setTimeout(() => {
+          const typing = document.activeElement instanceof HTMLInputElement;
+          if (!typing) {
+            openedByHover.current = false;
+            setExpanded(false);
+          }
+        }, HOVER_CLOSE_MS);
+      }
+    },
+  };
 }
 
 /** True for a moment whenever the number of sessions needing you goes up. */

@@ -1,0 +1,289 @@
+/* The Settings window. Colours come from the current theme's tokens. */
+
+.settings-page {
+  box-sizing: border-box;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 28px 32px 48px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.settings-page h1 {
+  margin: 0 0 20px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.settings-section {
+  padding: 18px 0;
+  border-top: 1px solid var(--surface-3);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-section h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.settings-page fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.settings-page legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.settings-page .hint {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.settings-page p {
+  margin: 0;
+}
+.settings-error {
+  color: var(--error);
+  font-size: 12px;
+}
+.settings-page input:focus-visible,
+.settings-page select:focus-visible,
+.theme-card:focus-within,
+.swatch:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Theme picker */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.theme-picker legend {
+  grid-column: 1 / -1;
+}
+.theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.theme-card.is-selected {
+  border-color: var(--accent);
+}
+.theme-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.theme-card-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+.theme-card-description {
+  font-size: 12px;
+  color: var(--muted);
+}
+.theme-preview {
+  display: flex;
+  justify-content: center;
+  padding: 14px 6px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  background: #c9ced6;
+  overflow: hidden;
+}
+.theme-preview .pill {
+  pointer-events: none;
+}
+
+/* Accent swatches */
+.swatches {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+.swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
+}
+.swatch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.swatch-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.swatch-custom input {
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+/* Rows */
+.toggle-row,
+.select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.toggle-row label {
+  flex-grow: 1;
+}
+.toggle-label,
+.radio-label {
+  display: block;
+  font-weight: 500;
+}
+.radio-row,
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+}
+.radio-row input,
+.check-row input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  margin-top: 6px;
+}
+.select-row select,
+.select-row input[type="range"] {
+  min-width: 160px;
+  accent-color: var(--accent);
+}
+/* Fully custom: native selects ignore dark backgrounds on some platforms. */
+.select-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 32px;
+  padding: 0 30px 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-3);
+  background-color: var(--surface-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1a1' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text);
+  font: inherit;
+}
+.select-row select option {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Radios and checkboxes: custom, so they read on dark backgrounds. */
+.radio-row input,
+.check-row input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  border: 1.5px solid var(--muted);
+  background: none;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.radio-row input {
+  border-radius: 50%;
+}
+.radio-row input:checked {
+  border: 5px solid var(--accent);
+}
+.check-row input {
+  border-radius: 4px;
+}
+.check-row input:checked {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f1030' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+
+/* Switches: real checkboxes, restyled */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border-radius: 11px;
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 150ms ease;
+}
+.switch:checked {
+  background: var(--accent);
+}
+.switch:checked::after {
+  transform: translateX(16px);
+  background: var(--on-accent);
+}
+
+.integration {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::after {
+    transition: none;
+  }
+}

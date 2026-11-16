@@ -68,6 +68,17 @@ export interface Config {
     answerQuestions: boolean;
     autoOpen: boolean;
   };
+  appearance: {
+    theme: "mono" | "crew";
+    /** "#rrggbb", or null for the theme's own accent. */
+    accent: string | null;
+    hoverToOpen: boolean;
+  };
+  sounds: {
+    enabled: boolean;
+    /** 0–1 */
+    volume: number;
+  };
   muted: boolean;
 }
 

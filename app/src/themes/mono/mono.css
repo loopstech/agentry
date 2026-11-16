@@ -1,6 +1,9 @@
 /* Mono theme tokens and looks. Structure lives in components.css. */
 
-.theme-mono {
+/* `.tokens-mono` gives just the colours and fonts (the Settings window
+   uses it, so its theme previews aren't restyled by the page's theme). */
+.theme-mono,
+.tokens-mono {
   --font: "Geist Sans", -apple-system, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
   --accent: #ff7a45;

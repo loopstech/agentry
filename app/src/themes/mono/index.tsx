@@ -2,13 +2,16 @@
 
 import "./mono.css";
 import type { Theme } from "../types";
-import { initials, plural } from "../../format";
+import { initials } from "../../format";
 import { needsUser } from "../../types";
 
 export const mono: Theme = {
   id: "mono",
   name: "Mono",
+  description: "Black and quiet, with one accent colour.",
   className: "theme-mono",
+  defaultAccent: "#ff7a45",
+  accents: ["#ff7a45", "#ffd60a", "#64d2ff", "#30d158", "#bf5af2"],
 
   Avatar: ({ session, size }) => {
     const state = needsUser(session)
@@ -52,7 +55,14 @@ export const mono: Theme = {
     emptyTitle: "No Claude Code sessions yet",
     emptyHint: "Start claude in a terminal or your editor and it shows up here.",
     waitingInTerminal: "Waiting for you in the terminal",
+    allow: "Allow",
+    deny: "Deny…",
+    denyConfirm: "Deny",
+    denyAndStop: "Deny & stop",
+    notePlaceholder: "e.g. use the existing Switch component",
+    send: "Send",
+    skip: "Skip",
+    useTerminal: "Use terminal",
+    helpersHeading: null,
   },
 };
-
-export const sessionCount = (n: number) => plural(n, "session", "sessions");

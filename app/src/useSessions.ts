@@ -43,16 +43,41 @@ export const jumpToSession = (id: string) => invoke<string>("jump_to_session", {
 
 export const setPanelOpen = (open: boolean) => invoke<void>("set_panel_open", { open }).catch(() => {});
 
-/** The user's settings, plus a mute toggle. */
+/** The user's settings, kept live: changes from any window (or from
+ *  `agentry config`) arrive as events. */
 export function useConfig() {
   const [config, setConfig] = useState<Config | null>(null);
   useEffect(() => {
     invoke<Config>("get_config").then(setConfig).catch(() => {});
+    const sub = listen<Config>("agentry://config", (e) => setConfig(e.payload));
+    return () => {
+      sub.then((off) => off());
+    };
   }, []);
   const setMuted = (muted: boolean) =>
     invoke<Config>("set_muted", { muted }).then(setConfig).catch(() => {});
-  return { config, setMuted };
+  const save = (next: Config) =>
+    invoke<Config>("save_config", { config: next }).then((c) => {
+      setConfig(c);
+      return c;
+    });
+  return { config, setMuted, save };
 }
+
+export const openSettings = () => invoke<void>("open_settings").catch(() => {});
+
+export interface HooksStatus {
+  settingsFile: string;
+  installed: number;
+  expected: number;
+  missingPrograms: string[];
+  hookProgram: string | null;
+  claudeVersion: string | null;
+}
+export const hooksStatus = () => invoke<HooksStatus>("hooks_status");
+export const installHooks = () => invoke<string>("install_hooks");
+export const uninstallHooks = () => invoke<string>("uninstall_hooks");
+export const playSound = (cue: "needs_you" | "finished") => invoke<void>("play_sound", { cue }).catch(() => {});
 
 /** Calls `onRequest` when a new request arrives in the widget. */
 export function useRequestArrivals(onRequest: (r: { sessionId: string; openPanel: boolean }) => void) {

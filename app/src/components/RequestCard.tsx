@@ -3,17 +3,20 @@
 
 import { useState } from "react";
 import type { Pending, Question, UiResponse } from "../types";
+import type { Theme } from "../themes/types";
 import { elapsed } from "../format";
 import { respondRequest } from "../useSessions";
 
 interface Props {
   request: Pending;
   now: number;
+  theme: Theme;
   /** Bring the session's terminal forward (after handing the request back). */
   onUseTerminal: () => void;
 }
 
-export function RequestCard({ request, now, onUseTerminal }: Props) {
+export function RequestCard({ request, now, theme, onUseTerminal }: Props) {
+  const t = theme.strings;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -35,9 +38,9 @@ export function RequestCard({ request, now, onUseTerminal }: Props) {
     <div className="request" aria-busy={busy}>
       {request.agentType && <div className="request-agent">Asked by the {request.agentType} helper</div>}
       {request.kind === "permission" ? (
-        <PermissionBody request={request} send={send} busy={busy} />
+        <PermissionBody request={request} send={send} busy={busy} t={t} />
       ) : (
-        <QuestionBody request={request} send={send} busy={busy} />
+        <QuestionBody request={request} send={send} busy={busy} t={t} />
       )}
       <div className="request-footer">
         <span>
@@ -55,8 +58,9 @@ export function RequestCard({ request, now, onUseTerminal }: Props) {
 }
 
 type Send = (r: UiResponse) => void;
+type Strings = Theme["strings"];
 
-function PermissionBody({ request, send, busy }: { request: Pending; send: Send; busy: boolean }) {
+function PermissionBody({ request, send, busy, t }: { request: Pending; send: Send; busy: boolean; t: Strings }) {
   const [denying, setDenying] = useState(false);
   const [note, setNote] = useState("");
 
@@ -73,14 +77,14 @@ function PermissionBody({ request, send, busy }: { request: Pending; send: Send;
         <>
           <div className="actions">
             <button className="btn btn-primary" disabled={busy} onClick={() => send({ action: "allow" })}>
-              Allow
+              {t.allow}
             </button>
             <button className="btn" disabled={busy} onClick={() => setDenying(true)}>
-              Deny…
+              {t.deny}
             </button>
             <span className="actions-spacer" />
             <button className="btn btn-link" disabled={busy} onClick={() => send({ action: "terminal" })}>
-              Use terminal
+              {t.useTerminal}
             </button>
           </div>
           {request.alwaysAllowLabel && (
@@ -108,13 +112,13 @@ function PermissionBody({ request, send, busy }: { request: Pending; send: Send;
               autoFocus
               type="text"
               value={note}
-              placeholder="e.g. use the existing Switch component"
+              placeholder={t.notePlaceholder}
               onChange={(e) => setNote(e.target.value)}
             />
           </label>
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={busy}>
-              Deny
+              {t.denyConfirm}
             </button>
             <button
               type="button"
@@ -122,7 +126,7 @@ function PermissionBody({ request, send, busy }: { request: Pending; send: Send;
               disabled={busy}
               onClick={() => send({ action: "deny", note: note.trim() || undefined, stop: true })}
             >
-              Deny &amp; stop
+              {t.denyAndStop}
             </button>
             <span className="actions-spacer" />
             <button type="button" className="btn btn-link" onClick={() => setDenying(false)}>
@@ -135,7 +139,7 @@ function PermissionBody({ request, send, busy }: { request: Pending; send: Send;
   );
 }
 
-function QuestionBody({ request, send, busy }: { request: Pending; send: Send; busy: boolean }) {
+function QuestionBody({ request, send, busy, t }: { request: Pending; send: Send; busy: boolean; t: Strings }) {
   // Per question: chosen option labels, and free text that overrides them.
   const [chosen, setChosen] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
@@ -208,7 +212,7 @@ function QuestionBody({ request, send, busy }: { request: Pending; send: Send; b
       ))}
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={busy || !complete}>
-          Send
+          {t.send}
         </button>
         <button
           type="button"
@@ -217,12 +221,12 @@ function QuestionBody({ request, send, busy }: { request: Pending; send: Send; b
           onClick={() => send({ action: "deny" })}
           title="Tell Claude you'd rather not answer"
         >
-          Skip
+          {t.skip}
         </button>
         <span className="actions-spacer" />
         <button type="button" className="btn btn-link" disabled={busy} onClick={() => send({ action: "terminal" })}>
-          Use terminal
-        </button>
+              {t.useTerminal}
+            </button>
       </div>
     </form>
   );

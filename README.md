@@ -2,13 +2,12 @@
 
 A small always-on-top macOS widget that shows every running Claude Code session. You can approve permissions and answer Claude's questions from it, and jump back to the session's window.
 
-> **Status: Phase 4 (detail view and jump).**
-> - Every session shows live in the island.
-> - You can allow or deny permission prompts and answer Claude's questions from it.
-> - Clicking a session shows its recent steps; ↗ jumps to its terminal tab or editor window.
-> - Sessions that were already running when the app started are picked up.
+> **Status: Phase 5 (themes and settings).**
+> - Every session shows live in the island, with its recent steps.
+> - You can approve, deny and answer Claude from it, and jump to the session's window.
+> - It now has two themes, **Mono** and **Crew**, an accent colour picker, sounds, hover-to-open, and a Settings window.
 >
-> Next: the Crew theme and a Settings window. See [PLAN.md](PLAN.md).
+> Next: packaging and release (Phase 6). See [PLAN.md](PLAN.md).
 
 ## How it works
 
@@ -47,6 +46,22 @@ cd Agentry
 ```
 
 A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it.
+
+### Phase 5 checks
+
+1. **Settings.** Click the gear in the panel header. The Settings window opens.
+2. **Theme.** Click the **Crew** card. The island switches straight away:
+   - characters instead of initials, with wide eyes and a "!" or "?" badge when waiting;
+   - step dots, a "Helpers" box, and "Go for it" / "Nope…" buttons.
+   - Quit and reopen Agentry: it stays on Crew.
+3. **Accent.** Pick a swatch, or **Custom**. The island's accent changes instantly.
+4. **Sounds.** Use **Play "needs you"** and **Play "finished"**, then the volume slider. Then confirm sounds also play on their own:
+   - when a session starts waiting on you (Mono: Tink, Crew: Pop);
+   - when one finishes (Mono: Purr, Crew: Hero).
+   - Quiet mode silences them.
+5. **Hover to open.** Turn it on; resting the pointer on the pill opens the panel, and moving away closes it again.
+6. **Connect to Claude Code.** The Claude Code section shows whether hooks are installed, and can install or remove them. It backs up your settings first.
+7. **Terminal.** `agentry config set appearance.theme mono` also switches the island live.
 
 ### Phase 4 checks
 
@@ -127,7 +142,7 @@ These need a real Mac, so please check and tell me what you see:
 agentry hooks install [--project [DIR]] [--hook-path PATH]
 agentry hooks uninstall [--project [DIR]]
 agentry status      # lists live sessions
-agentry config [get KEY | set KEY VALUE]
+agentry config [get KEY | set KEY VALUE]   # same settings as the Settings window
 agentry doctor
 agentry version
 ```

@@ -60,12 +60,62 @@ pub const MIN_TIMEOUT_SECS: u64 = 15;
 /// Claude Code's hook timeout is 3600 s; answer well before it gives up.
 pub const MAX_TIMEOUT_SECS: u64 = 3500;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    #[default]
+    Mono,
+    Crew,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Appearance {
+    pub theme: Theme,
+    /// "#rrggbb", or `None` for the theme's own accent.
+    pub accent: Option<String>,
+    /// Open the panel when the pointer rests on the pill.
+    pub hover_to_open: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Sounds {
+    pub enabled: bool,
+    /// 0.0–1.0
+    pub volume: f32,
+}
+
+impl Default for Sounds {
+    fn default() -> Self {
+        Sounds {
+            enabled: true,
+            volume: 0.6,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Config {
     pub approvals: Approvals,
+    pub appearance: Appearance,
+    pub sounds: Sounds,
     /// Quiet mode: no sounds, and every prompt goes to the terminal.
     pub muted: bool,
+}
+
+/// `#rgb` or `#rrggbb` → normalised `#rrggbb`.
+pub fn parse_hex_color(v: &str) -> Option<String> {
+    let h = v.trim().strip_prefix('#')?;
+    let full = match h.len() {
+        3 => h.chars().flat_map(|c| [c, c]).collect::<String>(),
+        6 => h.to_string(),
+        _ => return None,
+    };
+    full.chars()
+        .all(|c| c.is_ascii_hexdigit())
+        .then(|| format!("#{}", full.to_ascii_lowercase()))
 }
 
 impl Config {
@@ -77,8 +127,9 @@ impl Config {
     pub fn load(home: &Path) -> Config {
         std::fs::read_to_string(Self::file(home))
             .ok()
-            .and_then(|t| serde_json::from_str(&t).ok())
+            .and_then(|t| serde_json::from_str::<Config>(&t).ok())
             .unwrap_or_default()
+            .sanitized()
     }
 
     pub fn save(&self, home: &Path) -> std::io::Result<()> {
@@ -109,12 +160,25 @@ impl Config {
         let kind_ok = if is_question {
             self.approvals.answer_questions
         } else {
-            self.approvals
-                .tools
-                .as_ref()
-                .is_none_or(|t| t.iter().any(|x| x.eq_ignore_ascii_case(tool)))
+            self.approvals.tools.as_ref().is_none_or(|t| {
+                t.iter().any(|x| {
+                    x.eq_ignore_ascii_case(tool)
+                        || (x.eq_ignore_ascii_case("mcp") && tool.starts_with("mcp__"))
+                })
+            })
         };
         mode_ok && kind_ok
+    }
+
+    /// Clamp values a hand-edited file might have out of range.
+    pub fn sanitized(mut self) -> Config {
+        self.sounds.volume = if self.sounds.volume.is_finite() {
+            self.sounds.volume.clamp(0.0, 1.0)
+        } else {
+            0.6
+        };
+        self.appearance.accent = self.appearance.accent.as_deref().and_then(parse_hex_color);
+        self
     }
 
     /// Settable keys for `agentry config`, with a description.
@@ -143,9 +207,20 @@ impl Config {
             "approvals.autoOpen",
             "true | false — open the panel when a request arrives",
         ),
+        ("appearance.theme", "mono | crew"),
+        (
+            "appearance.accent",
+            "a colour such as #ff7a45, or \"default\"",
+        ),
+        (
+            "appearance.hoverToOpen",
+            "true | false — open the panel on hover",
+        ),
+        ("sounds.enabled", "true | false"),
+        ("sounds.volume", "0–100"),
         (
             "muted",
-            "true | false — quiet mode: everything goes to the terminal",
+            "true | false — quiet mode: no sounds, everything goes to the terminal",
         ),
     ];
 
@@ -162,6 +237,18 @@ impl Config {
             "approvals.alwaysAllow" => a.always_allow.to_string(),
             "approvals.answerQuestions" => a.answer_questions.to_string(),
             "approvals.autoOpen" => a.auto_open.to_string(),
+            "appearance.theme" => match self.appearance.theme {
+                Theme::Mono => "mono".into(),
+                Theme::Crew => "crew".into(),
+            },
+            "appearance.accent" => self
+                .appearance
+                .accent
+                .clone()
+                .unwrap_or_else(|| "default".into()),
+            "appearance.hoverToOpen" => self.appearance.hover_to_open.to_string(),
+            "sounds.enabled" => self.sounds.enabled.to_string(),
+            "sounds.volume" => ((self.sounds.volume * 100.0).round() as u32).to_string(),
             "muted" => self.muted.to_string(),
             _ => return None,
         })
@@ -204,6 +291,29 @@ impl Config {
             "approvals.alwaysAllow" => a.always_allow = boolean()?,
             "approvals.answerQuestions" => a.answer_questions = boolean()?,
             "approvals.autoOpen" => a.auto_open = boolean()?,
+            "appearance.theme" => {
+                self.appearance.theme = match v.to_ascii_lowercase().as_str() {
+                    "mono" => Theme::Mono,
+                    "crew" => Theme::Crew,
+                    _ => return Err("appearance.theme must be mono or crew".into()),
+                }
+            }
+            "appearance.accent" => {
+                self.appearance.accent = if v.eq_ignore_ascii_case("default") || v.is_empty() {
+                    None
+                } else {
+                    Some(parse_hex_color(v).ok_or("appearance.accent must be a colour like #ff7a45, or \"default\"")?)
+                }
+            }
+            "appearance.hoverToOpen" => self.appearance.hover_to_open = boolean()?,
+            "sounds.enabled" => self.sounds.enabled = boolean()?,
+            "sounds.volume" => {
+                let n: f32 = v.parse().map_err(|_| "sounds.volume must be 0–100".to_string())?;
+                if !(0.0..=100.0).contains(&n) {
+                    return Err("sounds.volume must be 0–100".into());
+                }
+                self.sounds.volume = n / 100.0;
+            }
             "muted" => self.muted = boolean()?,
             _ => return Err(format!("unknown setting {key:?}")),
         }
@@ -249,6 +359,32 @@ mod tests {
     }
 
     #[test]
+    fn appearance_and_sounds() {
+        let mut c = Config::default();
+        assert_eq!((c.appearance.theme, c.sounds.enabled), (Theme::Mono, true));
+        c.set("appearance.theme", "Crew").unwrap();
+        c.set("appearance.accent", "#F0a").unwrap();
+        c.set("sounds.volume", "35").unwrap();
+        assert_eq!(c.get("appearance.theme").unwrap(), "crew");
+        assert_eq!(c.get("appearance.accent").unwrap(), "#ff00aa");
+        assert_eq!(c.get("sounds.volume").unwrap(), "35");
+        assert!(c.set("appearance.accent", "red").is_err());
+        assert!(c.set("sounds.volume", "300").is_err());
+        c.set("appearance.accent", "default").unwrap();
+        assert_eq!(c.appearance.accent, None);
+
+        // Hand-edited nonsense is cleaned up on load.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            Config::file(dir.path()),
+            r#"{"appearance":{"accent":"javascript:alert(1)"},"sounds":{"volume":7}}"#,
+        )
+        .unwrap();
+        let c = Config::load(dir.path());
+        assert_eq!((c.appearance.accent, c.sounds.volume), (None, 1.0));
+    }
+
+    #[test]
     fn validation() {
         let mut c = Config::default();
         assert!(c.set("approvals.timeout", "5").is_err());
@@ -269,6 +405,10 @@ mod tests {
             c.widget_handles("AskUserQuestion", true, true),
             "tool list doesn't apply to questions"
         );
+        c.set("approvals.tools", "Write,mcp").unwrap();
+        assert!(c.widget_handles("mcp__github__create_issue", false, true));
+        assert!(!c.widget_handles("Bash", false, true));
+        c.set("approvals.tools", "Write").unwrap();
         c.set("approvals.mode", "widget_when_visible").unwrap();
         assert!(!c.widget_handles("Write", false, false));
         assert!(c.widget_handles("Write", false, true));

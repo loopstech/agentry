@@ -1,0 +1,275 @@
+/* Crew theme tokens and looks. Structure lives in components.css. */
+
+.theme-crew,
+.tokens-crew {
+  --font: "Bricolage Grotesque", -apple-system, system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+  --accent: #ffd166;
+  --on-accent: #0f1030;
+  --surface: #1c1d4a;
+  --surface-2: #272960;
+  --surface-3: #3a3c80;
+  --line: transparent;
+  --text: #ffffff;
+  --muted: #b9bbe6; /* 7:1 on #272960 */
+  --faint: #8587c4;
+  --error: #ff9b8f;
+  --radius-pill: 24px;
+  --radius-panel: 32px;
+  --shadow: 0 0 0 1px #2e3070, 0 18px 44px rgba(15, 16, 48, 0.45);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+/* ----- Pill ----- */
+.theme-crew .pill {
+  height: 46px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+.theme-crew .pill-strong {
+  font-weight: 800;
+}
+.theme-crew .pill-avatars > * + * {
+  margin-left: -9px;
+}
+.theme-crew .pill-alert {
+  width: 28px;
+  height: 28px;
+}
+
+/* ----- Avatars: characters ----- */
+.theme-crew .avatar {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.theme-crew .avatar-md {
+  width: 52px;
+  height: 52px;
+}
+.theme-crew .avatar-sm {
+  width: 30px;
+  height: 30px;
+  padding: 2px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.theme-crew .avatar-sm.avatar-waiting {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.theme-crew .crew-antenna,
+.theme-crew .crew-badge circle {
+  fill: var(--accent);
+}
+.theme-crew .avatar-done {
+  opacity: 0.7;
+}
+.theme-crew .avatar-md.avatar-working .crew-body {
+  animation: crew-bob 1.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.theme-crew .avatar-md.avatar-waiting .crew-body {
+  animation: crew-wiggle 2.4s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes crew-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+@keyframes crew-wiggle {
+  0%,
+  80%,
+  100% {
+    transform: rotate(0);
+  }
+  85% {
+    transform: rotate(-4deg);
+  }
+  90% {
+    transform: rotate(4deg);
+  }
+  95% {
+    transform: rotate(-2deg);
+  }
+}
+
+/* ----- Panel and rows: cards ----- */
+.theme-crew .panel {
+  padding: 6px;
+  animation: crew-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50% 0;
+}
+@keyframes crew-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+.theme-crew .panel-header {
+  padding: 10px 10px 10px 16px;
+}
+.theme-crew .panel-title {
+  font-size: 18px;
+  font-weight: 800;
+}
+.theme-crew .panel-count {
+  font-family: var(--font);
+  font-size: 13px;
+}
+.theme-crew .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.theme-crew .row {
+  border: 0;
+  border-radius: 24px;
+  background: var(--surface-2);
+  padding: 14px 16px;
+}
+.theme-crew .row-needs {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.theme-crew .row-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+.theme-crew .row-subtitle {
+  font-size: 13px;
+}
+.theme-crew .row-count {
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--accent);
+}
+.theme-crew .row-indent {
+  margin-left: 64px;
+}
+.theme-crew .row-done .row-main,
+.theme-crew .row-done .row-indent {
+  opacity: 0.6;
+}
+.theme-crew .empty {
+  border: 0;
+}
+.theme-crew .icon-button:hover {
+  background: var(--surface-3);
+}
+.theme-crew .icon-button-filled {
+  background: var(--surface-2);
+}
+
+/* ----- Progress: step dots ----- */
+.theme-crew .dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.theme-crew .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  box-sizing: border-box;
+  transition: background 300ms ease;
+}
+.theme-crew .dot-done {
+  background: var(--accent);
+}
+.theme-crew .dot-current {
+  background: none;
+  border: 2px solid var(--accent);
+}
+
+/* ----- Helpers box ----- */
+.theme-crew .helpers {
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 10px 12px;
+  gap: 6px;
+  font-size: 13px;
+}
+.theme-crew .helpers::before {
+  content: "HELPERS";
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.theme-crew .helper-type {
+  font-weight: 600;
+}
+
+/* ----- Buttons and fields ----- */
+.theme-crew .btn {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 20px;
+  background: var(--surface-3);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 3px 0 rgba(10, 10, 40, 0.55);
+}
+.theme-crew .btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(10, 10, 40, 0.55);
+}
+.theme-crew .btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 800;
+}
+.theme-crew .btn-link,
+.theme-crew .btn-ghost {
+  box-shadow: none;
+  font-size: 13px;
+}
+.theme-crew .btn-link {
+  background: none;
+  color: var(--muted);
+  padding: 0 6px;
+}
+.theme-crew .btn-ghost {
+  border: 2px solid var(--surface-3);
+  height: 36px;
+}
+.theme-crew .code {
+  background: #0f1030;
+  border-radius: 14px;
+}
+.theme-crew .field input {
+  height: 40px;
+  border-radius: 20px;
+  border: 2px solid var(--surface-3);
+  background: var(--surface);
+}
+.theme-crew .option {
+  border-radius: 14px;
+}
+.theme-crew .option-on {
+  background: var(--surface-3);
+}
+.theme-crew .transcript {
+  border-left-color: var(--surface-3);
+}
+.theme-crew .toast {
+  margin: 0 6px 6px;
+  background: var(--surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-crew .avatar-md .crew-body,
+  .theme-crew .panel {
+    animation: none;
+  }
+}

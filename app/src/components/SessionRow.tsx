@@ -70,7 +70,7 @@ export function SessionRow({ session: s, theme, now, open, onToggle, notify }: P
 
       {request && (
         <div className="row-indent">
-          <RequestCard key={request.id} request={request} now={now} onUseTerminal={jump} />
+          <RequestCard key={request.id} request={request} now={now} theme={theme} onUseTerminal={jump} />
           {s.pending.length > 1 && <div className="request-more">+{s.pending.length - 1} more waiting</div>}
         </div>
       )}
@@ -88,9 +88,10 @@ export function SessionRow({ session: s, theme, now, open, onToggle, notify }: P
       )}
 
       {helpers.length > 0 && (
-        <ul className="row-indent helpers" aria-label="Helpers">
+        <ul className="row-indent helpers" aria-label={theme.strings.helpersHeading ?? "Helpers"}>
           {helpers.map((h) => (
             <li key={h.agentId} className={`helper${h.done ? " helper-done" : ""}`}>
+              {theme.HelperIcon && <theme.HelperIcon done={h.done} />}
               <span className="helper-type">{h.agentType}</span>
               <span className="helper-subtitle">{h.subtitle}</span>
               {h.done && <Check />}

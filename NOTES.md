@@ -119,3 +119,26 @@ All of these were checked against real sessions. Interactive sessions were drive
   - The tmux jump was verified for real, both in a test and through the GUI. The AppleScript paths need a Mac.
 - **Use terminal** on a request card hands the request back and also jumps to the session.
 - **macOS Automation permission.** The first jump to iTerm2 or Terminal triggers macOS's prompt to allow controlling that app. The Phase 6 first-run screen should explain this.
+
+## Decisions and deviations in Phase 5
+
+- **Themes** live in `app/src/themes/<name>/`: tokens and styles (CSS), avatar art, progress style, helper icon and wording. The components are shared. Adding a theme means a new folder plus one line in `themes/index.ts`.
+  - **Mono:** initials, hairline progress, monochrome with one accent.
+  - **Crew:** a character per session (robot, blob, ghost or triangle, in two colour sets), chosen from the session's stable avatar number. It has a mood for each status (busy, waiting, ready, done, error), with a "!" or "?" badge when waiting on a permission or question. It also has step dots (scaled to 12 for long lists), a "Helpers" box, chunky buttons, a bounce while working and a pop-in panel. All motion respects "Reduce motion".
+- **Settings** are in `~/.agentry/config.json`, which now has `appearance` (theme, accent, hoverToOpen) and `sounds` (enabled, volume) sections.
+  - The app watches the file every second, so edits from the Settings window, `agentry config` or by hand reach the island live.
+  - Hand-edited values are cleaned up on load: volume is clamped, and an invalid accent colour falls back to the theme default.
+- **The Settings window** (`#settings`, opened by the gear) uses only the current theme's colour tokens (`.tokens-<name>`). If it used the full theme class, Crew's styles would leak into the Mono preview card.
+- **Sounds** use macOS system sounds through `afplay`:
+
+  | Theme | Needs you | Finished |
+  |---|---|---|
+  | Mono | Tink | Purr |
+  | Crew | Pop | Hero |
+
+  - They're played natively, not with web audio, because browsers block web audio until the page has been clicked.
+  - One sound per change at most; sessions picked up at launch don't trigger sounds.
+  - Quiet mode silences them. On Linux they're logged instead.
+- **"MCP tools"** in the tool list matches every `mcp__*` tool.
+- **Bug found while testing:** move events from the Settings window were being treated as the island being dragged, so the island reopened where Settings had been. Only the island's own moves count now.
+- **Not done:** titles via Haiku (dropped earlier in favour of Claude Code's own titles); light variants of the themes (later, as planned).
