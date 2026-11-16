@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub mod store;
+pub mod transcript;
 
 use agentry_core::config::Config;
 use agentry_core::protocol::{tool_name, Decision, Envelope, EventSummary};
@@ -33,7 +34,8 @@ use serde_json::{json, Value};
 use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
 
-use crate::store::{Outcome, Pending, PendingKind, Session, Store};
+use crate::store::{title_from_prompt, Outcome, Pending, PendingKind, Session, Store, TitleSource};
+use crate::transcript::{recent_transcripts, Step, Transcript, TranscriptInfo};
 
 /// How often expired sessions and helpers are cleared out.
 const TICK_INTERVAL: Duration = Duration::from_secs(5);
@@ -48,6 +50,9 @@ pub struct ServerOptions {
     pub home: PathBuf,
     /// Overrides the configured approval timeout. For tests.
     pub request_timeout: Option<Duration>,
+    /// Claude Code's `projects` directory. When set, sessions whose
+    /// transcripts changed recently are shown at launch.
+    pub backfill_from: Option<PathBuf>,
 }
 
 impl Default for ServerOptions {
@@ -55,6 +60,7 @@ impl Default for ServerOptions {
         ServerOptions {
             home: paths::agentry_home(),
             request_timeout: None,
+            backfill_from: Some(paths::claude_config_dir().join("projects")),
         }
     }
 }
@@ -99,6 +105,21 @@ pub enum UiResponse {
     Answer {
         answers: BTreeMap<String, String>,
     },
+}
+
+/// The best title a transcript offers: the user's `/rename`, else Claude
+/// Code's generated title, else one made from the first prompt.
+fn best_title(info: &TranscriptInfo) -> Option<(String, TitleSource)> {
+    if let Some(t) = &info.custom_title {
+        return Some((t.clone(), TitleSource::Custom));
+    }
+    if let Some(t) = &info.ai_title {
+        return Some((t.clone(), TitleSource::Ai));
+    }
+    info.first_prompt
+        .as_deref()
+        .and_then(title_from_prompt)
+        .map(|t| (t, TitleSource::Prompt))
 }
 
 /// Turn the user's choice into the hook's decision.
@@ -175,6 +196,8 @@ pub struct Sessions {
     waiters: Arc<Mutex<HashMap<String, oneshot::Sender<Decision>>>>,
     /// Whether the widget's panel is open (for "widget only while visible").
     panel_open: Arc<AtomicBool>,
+    /// Transcript readers, by file path.
+    transcripts: Arc<Mutex<HashMap<String, Transcript>>>,
 }
 
 impl Sessions {
@@ -193,6 +216,111 @@ impl Sessions {
 
     fn apply(&self, envelope: &Envelope) -> bool {
         self.update(|s| s.apply(envelope, now_ms()))
+    }
+
+    /// The session's most recent `n` transcript steps (reads anything new).
+    pub fn transcript(&self, session_id: &str, n: usize) -> Result<Vec<Step>, String> {
+        let path = self
+            .store
+            .lock()
+            .unwrap()
+            .get(session_id)
+            .and_then(|s| s.transcript_path.clone())
+            .ok_or("no transcript for this session yet")?;
+        let (steps, info) = self
+            .read_transcript(&path, |t| t.recent(n))
+            .map_err(|e| format!("can't read the transcript: {e}"))?;
+        self.offer_titles(session_id, &info);
+        Ok(steps)
+    }
+
+    /// Re-read the transcripts of live sessions for title changes (`/rename`
+    /// fires no hook; it only writes to the transcript).
+    fn refresh_live_titles(&self) {
+        let ids: Vec<String> = self
+            .snapshot()
+            .into_iter()
+            .filter(|s| s.status != store::Status::Done && s.transcript_path.is_some())
+            .map(|s| s.id)
+            .collect();
+        for id in ids {
+            self.refresh_title(&id);
+        }
+    }
+
+    /// Pick up Claude Code's own title for a session from its transcript.
+    fn refresh_title(&self, session_id: &str) {
+        let path = self
+            .store
+            .lock()
+            .unwrap()
+            .get(session_id)
+            .and_then(|s| s.transcript_path.clone());
+        if let Some(path) = path {
+            if let Ok(((), info)) = self.read_transcript(&path, |_| ()) {
+                self.offer_titles(session_id, &info);
+            }
+        }
+    }
+
+    fn read_transcript<T>(
+        &self,
+        path: &str,
+        f: impl FnOnce(&Transcript) -> T,
+    ) -> std::io::Result<(T, TranscriptInfo)> {
+        let mut cache = self.transcripts.lock().unwrap();
+        let t = match cache.entry(path.to_owned()) {
+            std::collections::hash_map::Entry::Occupied(e) => {
+                let t = e.into_mut();
+                t.poll()?;
+                t
+            }
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(Transcript::open(std::path::Path::new(path))?)
+            }
+        };
+        Ok((f(t), t.info.clone()))
+    }
+
+    fn offer_titles(&self, session_id: &str, info: &TranscriptInfo) {
+        if let Some((title, source)) = best_title(info) {
+            self.update(|s| s.offer_title(session_id, &title, source));
+        }
+    }
+
+    /// Show sessions whose transcripts changed recently (Agentry started
+    /// while they were running).
+    fn backfill(&self, projects_dir: &std::path::Path) {
+        let mut added = 0;
+        for (path, mtime) in recent_transcripts(projects_dir, store::BACKFILL_TTL_MS) {
+            let Some(path_str) = path.to_str() else {
+                continue;
+            };
+            let Ok(((), info)) = self.read_transcript(path_str, |_| ()) else {
+                continue;
+            };
+            let (Some(id), Some(cwd)) = (info.session_id.clone(), info.cwd.clone()) else {
+                continue;
+            };
+            let title = best_title(&info);
+            if self.update(|s| {
+                s.backfill(
+                    &id,
+                    &cwd,
+                    path_str,
+                    title.as_ref().map(|(t, src)| (t.as_str(), *src)),
+                    mtime,
+                )
+            }) {
+                added += 1;
+            }
+        }
+        if added > 0 {
+            tracing::info!(
+                added,
+                "picked up sessions that were running before Agentry started"
+            );
+        }
     }
 
     pub fn set_panel_open(&self, open: bool) {
@@ -317,7 +445,12 @@ impl Server {
             events: events.clone(),
             waiters: Arc::new(Mutex::new(HashMap::new())),
             panel_open: Arc::new(AtomicBool::new(false)),
+            transcripts: Arc::new(Mutex::new(HashMap::new())),
         };
+        if let Some(dir) = opts.backfill_from.clone() {
+            let sessions = sessions.clone();
+            tokio::task::spawn_blocking(move || sessions.backfill(&dir));
+        }
         let state = AppState {
             home: home.clone(),
             request_timeout: opts.request_timeout,
@@ -352,6 +485,8 @@ impl Server {
                 loop {
                     interval.tick().await;
                     sessions.tick();
+                    let s = sessions.clone();
+                    let _ = tokio::task::spawn_blocking(move || s.refresh_live_titles()).await;
                 }
             }
         });
@@ -455,6 +590,14 @@ fn publish(state: &AppState, envelope: Envelope) -> EventSummary {
     }
     state.sessions.apply(&envelope);
     state.sessions.release_cancelled();
+    // Claude Code writes its own session title into the transcript; look for
+    // it when a session starts and after each turn.
+    if matches!(summary.event.as_str(), "SessionStart" | "Stop") {
+        if let Some(id) = summary.session_id.clone() {
+            let sessions = state.sessions.clone();
+            tokio::task::spawn_blocking(move || sessions.refresh_title(&id));
+        }
+    }
     let _ = state.events.send(ServerEvent::Hook {
         summary: summary.clone(),
         envelope: Box::new(envelope),

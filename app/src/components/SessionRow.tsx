@@ -1,45 +1,63 @@
 import type { Theme } from "../themes/types";
 import { needsUser, type Session } from "../types";
 import { elapsed } from "../format";
-import { Check, Close } from "./Icons";
-import { dismissSession } from "../useSessions";
+import { Check, Close, Jump } from "./Icons";
+import { dismissSession, jumpToSession } from "../useSessions";
 import { RequestCard } from "./RequestCard";
+import { Transcript } from "./Transcript";
 
 interface Props {
   session: Session;
   theme: Theme;
   now: number;
+  open: boolean;
+  onToggle: () => void;
+  /** Show a short message (e.g. the result of jumping). */
+  notify: (message: string, isError?: boolean) => void;
 }
 
-export function SessionRow({ session: s, theme, now }: Props) {
+export function SessionRow({ session: s, theme, now, open, onToggle, notify }: Props) {
   const { Avatar, Progress } = theme;
   const needs = needsUser(s);
   const helpers = s.helpers;
   const request = s.pending[0];
+  const jump = () =>
+    jumpToSession(s.id).then(
+      (msg) => notify(msg),
+      (err) => notify(String(err), true),
+    );
 
   return (
     <li className={`row row-${s.status}${needs ? " row-needs" : ""}`}>
       <div className="row-main">
         <Avatar session={s} size="md" />
-        <div className="row-text">
-          <div className="row-title">
+        <button
+          className="row-text"
+          aria-expanded={open}
+          aria-label={`${s.title}: ${s.subtitle}. ${open ? "Hide" : "Show"} recent steps`}
+          onClick={onToggle}
+        >
+          <span className="row-title">
             <span className="title">{s.title}</span>
             <span className="project"> — {s.project}</span>
-          </div>
-          <div className={`row-subtitle${needs ? " is-needs" : s.status === "error" ? " is-error" : ""}`}>
+          </span>
+          <span className={`row-subtitle${needs ? " is-needs" : s.status === "error" ? " is-error" : ""}`}>
             {s.subtitle}
-          </div>
+          </span>
           {needs && !request && s.needsSince && (
-            <div className="row-hint">
+            <span className="row-hint">
               {theme.strings.waitingInTerminal} · {elapsed(now - s.needsSince)}
-            </div>
+            </span>
           )}
-        </div>
+        </button>
         {s.progress && (
           <span className="row-count" aria-hidden="true">
             {s.progress.done}/{s.progress.total}
           </span>
         )}
+        <button className="icon-button" aria-label={`Go to ${s.title}`} title="Go to session" onClick={jump}>
+          <Jump />
+        </button>
         <button
           className="icon-button"
           aria-label={`Dismiss ${s.title}`}
@@ -52,7 +70,7 @@ export function SessionRow({ session: s, theme, now }: Props) {
 
       {request && (
         <div className="row-indent">
-          <RequestCard key={request.id} request={request} now={now} />
+          <RequestCard key={request.id} request={request} now={now} onUseTerminal={jump} />
           {s.pending.length > 1 && <div className="request-more">+{s.pending.length - 1} more waiting</div>}
         </div>
       )}
@@ -60,6 +78,12 @@ export function SessionRow({ session: s, theme, now }: Props) {
       {s.progress && s.progress.total > 0 && (
         <div className="row-indent">
           <Progress done={s.progress.done} total={s.progress.total} />
+        </div>
+      )}
+
+      {open && (
+        <div className="row-indent">
+          <Transcript sessionId={s.id} />
         </div>
       )}
 

@@ -37,6 +37,10 @@ export const dismissSession = (id: string) => invoke<boolean>("dismiss_session",
 export const respondRequest = (requestId: string, response: UiResponse) =>
   invoke<void>("respond_request", { requestId, response });
 
+/** Bring the session's terminal tab or editor window forward. Resolves to a
+ *  short description, rejects with a readable reason. */
+export const jumpToSession = (id: string) => invoke<string>("jump_to_session", { id });
+
 export const setPanelOpen = (open: boolean) => invoke<void>("set_panel_open", { open }).catch(() => {});
 
 /** The user's settings, plus a mute toggle. */

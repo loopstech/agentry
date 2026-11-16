@@ -2,7 +2,13 @@
 
 A small always-on-top macOS widget that shows every running Claude Code session. You can approve permissions and answer Claude's questions from it, and jump back to the session's window.
 
-> **Status: Phase 3 (approvals and questions).** The island shows every session live. You can also allow or deny permission prompts (with a note to Claude, or "Always allow"), and answer Claude's questions, without going back to the terminal. Jumping to the session's window comes in Phase 4. See [PLAN.md](PLAN.md).
+> **Status: Phase 4 (detail view and jump).**
+> - Every session shows live in the island.
+> - You can allow or deny permission prompts and answer Claude's questions from it.
+> - Clicking a session shows its recent steps; ↗ jumps to its terminal tab or editor window.
+> - Sessions that were already running when the app started are picked up.
+>
+> Next: the Crew theme and a Settings window. See [PLAN.md](PLAN.md).
 
 ## How it works
 
@@ -41,6 +47,21 @@ cd Agentry
 ```
 
 A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it.
+
+### Phase 4 checks
+
+1. **Detail view.** Click a session's title. Its recent steps appear (your prompts, Claude's replies, and tool calls ticked when done or crossed when they fail), and they keep updating while it works.
+2. **Jump.** Switch to another window, then click ↗ on a session.
+   - **iTerm2 or Terminal.app:** the exact tab comes forward. The first time, macOS asks whether Agentry may control that app; allow it.
+   - **VS Code or Cursor:** the project's window comes forward.
+   - **Inside tmux:** the right pane is selected.
+3. **Use terminal.** On an approval card, *Use terminal* hands the prompt back and jumps to the session.
+4. **Already running.** Start a `claude` session, then quit and restart Agentry.
+   - The session reappears straight away, titled with Claude Code's own title, as "Active before Agentry started".
+   - Its ↗ works once it does something.
+5. **Titles.** `/rename Something` in a session updates its card within a few seconds.
+
+Please tell me which terminal and editor you use, and whether ↗ found the right tab. Those AppleScript paths can't be tested here.
 
 ### Phase 3 checks
 

@@ -36,6 +36,12 @@ export const Check = () => (
   </svg>
 );
 
+export const Jump = () => (
+  <svg {...base}>
+    <path d="M7 17L17 7M9 7h8v8" />
+  </svg>
+);
+
 export const Sound = () => (
   <svg {...base}>
     <path d="M11 5L6 9H3v6h3l5 4V5z" />

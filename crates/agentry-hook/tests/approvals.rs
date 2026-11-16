@@ -64,6 +64,7 @@ async fn start(dir: &Path, timeout: Option<Duration>) -> Server {
     Server::start(ServerOptions {
         home: dir.into(),
         request_timeout: timeout,
+        backfill_from: None,
     })
     .await
     .unwrap()

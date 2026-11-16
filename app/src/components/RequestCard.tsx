@@ -9,9 +9,11 @@ import { respondRequest } from "../useSessions";
 interface Props {
   request: Pending;
   now: number;
+  /** Bring the session's terminal forward (after handing the request back). */
+  onUseTerminal: () => void;
 }
 
-export function RequestCard({ request, now }: Props) {
+export function RequestCard({ request, now, onUseTerminal }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,6 +22,7 @@ export function RequestCard({ request, now }: Props) {
     setError(null);
     try {
       await respondRequest(request.id, response);
+      if (response.action === "terminal") onUseTerminal();
     } catch (e) {
       setError(String(e));
       setBusy(false);

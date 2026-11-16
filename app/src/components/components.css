@@ -191,6 +191,22 @@ button {
 .row-text {
   flex-grow: 1;
   min-width: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+.row-text:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.row-title,
+.row-subtitle,
+.row-hint {
+  display: block;
 }
 .row-title {
   font-size: 14px;
@@ -518,7 +534,108 @@ button {
   white-space: nowrap;
 }
 
+/* ---------- Detail view and toast ---------- */
+
+.transcript {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 12px;
+  border-left: 1px solid var(--surface-3);
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.transcript-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+.step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.step-text {
+  min-width: 0;
+  flex-grow: 1;
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.step-prompt .step-text {
+  color: var(--text);
+}
+.step-tool .step-text {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+}
+.step-note .step-text {
+  font-style: italic;
+}
+.step-who {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+.step-time {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--faint);
+}
+.step-status {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.step-status-running::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+  animation: step-blink 1.2s ease-in-out infinite;
+}
+.step-status-error {
+  color: var(--error);
+}
+.step-status svg {
+  width: 11px;
+  height: 11px;
+}
+@keyframes step-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.toast {
+  margin: 0 16px 8px 22px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 12px;
+  color: var(--text);
+}
+.toast-error {
+  color: var(--error);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .step-status-running::before,
   .pill-pulse,
   .panel {
     animation: none;

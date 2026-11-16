@@ -85,6 +85,7 @@ async fn events_reach_the_server_with_context() {
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
@@ -143,6 +144,7 @@ async fn blocking_requests_go_to_terminal_in_terminal_only_mode() {
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
@@ -177,6 +179,7 @@ async fn fails_open_when_app_is_not_running() {
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
@@ -201,6 +204,7 @@ async fn rejects_wrong_token_and_bad_input_silently() {
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
@@ -252,12 +256,14 @@ async fn second_instance_refuses_to_start() {
     let first = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
     let second = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await;
     assert!(second.is_err());
@@ -266,6 +272,7 @@ async fn second_instance_refuses_to_start() {
     let third = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();
@@ -278,6 +285,7 @@ async fn hook_is_fast() {
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
         request_timeout: None,
+        backfill_from: None,
     })
     .await
     .unwrap();

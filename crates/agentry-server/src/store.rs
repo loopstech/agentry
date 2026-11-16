@@ -15,6 +15,9 @@ use serde_json::Value;
 pub const DONE_TTL_MS: u64 = 10 * 60 * 1000;
 /// Sessions with no events for this long are dropped, unless pinned.
 pub const STALE_TTL_MS: u64 = 2 * 60 * 60 * 1000;
+/// Sessions picked up from transcripts at launch disappear this long after
+/// their transcript last changed, unless a live event arrives.
+pub const BACKFILL_TTL_MS: u64 = 30 * 60 * 1000;
 /// Finished helpers (subagents) stay visible this long.
 pub const HELPER_TTL_MS: u64 = 30 * 1000;
 
@@ -57,15 +60,18 @@ impl Status {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Where the card's title came from. Later variants win over earlier ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TitleSource {
-    /// Claude Code's own session title (or `/rename`).
-    Claude,
-    /// Derived from the first prompt.
-    Prompt,
     /// Nothing to go on yet.
     Placeholder,
+    /// Derived from the first prompt.
+    Prompt,
+    /// Claude Code's generated title (transcript `ai-title`).
+    Ai,
+    /// Set by the user: `/rename`, or the session's custom title.
+    Custom,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -202,6 +208,8 @@ pub struct Session {
     /// Text for the current status when it isn't about work in progress.
     #[serde(skip)]
     note: Option<String>,
+    /// Picked up from a transcript at launch; no live event seen yet.
+    pub backfilled: bool,
 }
 
 impl Session {
@@ -230,6 +238,7 @@ impl Session {
             pending: Vec::new(),
             activity: None,
             note: Some("Ready".into()),
+            backfilled: false,
         }
     }
 
@@ -376,6 +385,7 @@ impl Store {
         let s = self.sessions.get_mut(sid).expect("just inserted");
 
         s.updated_at = now;
+        s.backfilled = false;
         if s.cwd.is_empty() {
             if let Some(cwd) = str_field(p, "cwd") {
                 s.cwd = cwd.to_owned();
@@ -411,7 +421,7 @@ impl Store {
                 }
                 if let Some(t) = str_field(p, "session_title").filter(|t| !t.trim().is_empty()) {
                     s.title = truncate(t.trim(), MAX_TITLE);
-                    s.title_source = TitleSource::Claude;
+                    s.title_source = TitleSource::Custom;
                 }
                 if let Some(m) = str_field(p, "model") {
                     s.model = Some(m.to_owned());
@@ -429,7 +439,7 @@ impl Store {
                     .filter(|n| !n.is_empty())
                 {
                     s.title = truncate(name, MAX_TITLE);
-                    s.title_source = TitleSource::Claude;
+                    s.title_source = TitleSource::Custom;
                 } else if s.title_source == TitleSource::Placeholder
                     && !prompt.is_empty()
                     && !prompt.starts_with('/')
@@ -604,6 +614,50 @@ impl Store {
         Some(req)
     }
 
+    /// Use a better title if one is available (`/rename` beats Claude Code's
+    /// generated title, which beats one derived from the prompt).
+    pub fn offer_title(&mut self, session_id: &str, title: &str, source: TitleSource) -> bool {
+        let Some(s) = self.sessions.get_mut(session_id) else {
+            return false;
+        };
+        let title = truncate(title.trim(), MAX_TITLE);
+        if title.is_empty()
+            || source < s.title_source
+            || (source == s.title_source && title == s.title)
+        {
+            return false;
+        }
+        s.title = title;
+        s.title_source = source;
+        true
+    }
+
+    /// Add a session found in a recently changed transcript at launch.
+    /// Returns false if the session is already known.
+    pub fn backfill(
+        &mut self,
+        session_id: &str,
+        cwd: &str,
+        transcript_path: &str,
+        title: Option<(&str, TitleSource)>,
+        last_change: u64,
+    ) -> bool {
+        if self.sessions.contains_key(session_id) || self.dismissed.contains(session_id) {
+            return false;
+        }
+        let mut s = Session::new(session_id, cwd, self.next_avatar, last_change);
+        self.next_avatar += 1;
+        s.transcript_path = Some(transcript_path.to_owned());
+        s.backfilled = true;
+        s.note = Some("Active before Agentry started".into());
+        s.refresh();
+        self.sessions.insert(session_id.to_owned(), s);
+        if let Some((t, source)) = title {
+            self.offer_title(session_id, t, source);
+        }
+        true
+    }
+
     /// Ids of pending requests dropped since the last call.
     pub fn take_cancelled(&mut self) -> Vec<String> {
         std::mem::take(&mut self.cancelled)
@@ -613,6 +667,9 @@ impl Store {
     pub fn tick(&mut self, now: u64) -> bool {
         let before = self.sessions.len();
         self.sessions.retain(|_, s| {
+            if s.backfilled && !s.pinned {
+                return now.saturating_sub(s.updated_at) <= BACKFILL_TTL_MS;
+            }
             s.pinned
                 || !(s
                     .ended_at
@@ -1341,6 +1398,53 @@ mod tests {
             json!({"hook_event_name": "UserPromptSubmit", "session_id": "a", "prompt": "/rename Ship v2"}),
         );
         assert_eq!(s.snapshot()[0].title, "Ship v2");
+        // Claude Code's generated title doesn't override a user's name.
+        assert!(!s.offer_title("a", "Release notes", TitleSource::Ai));
+        assert_eq!(s.snapshot()[0].title, "Ship v2");
+    }
+
+    #[test]
+    fn ai_title_beats_prompt_title() {
+        let mut s = Store::new();
+        ev(
+            &mut s,
+            1,
+            json!({"hook_event_name": "UserPromptSubmit", "session_id": "a", "cwd": "/w/x", "prompt": "run the thing please now"}),
+        );
+        assert_eq!(s.snapshot()[0].title_source, TitleSource::Prompt);
+        assert!(s.offer_title("a", "Timestamp to gui1.txt", TitleSource::Ai));
+        assert_eq!(s.snapshot()[0].title, "Timestamp to gui1.txt");
+        assert!(!s.offer_title("a", "Timestamp to gui1.txt", TitleSource::Ai));
+    }
+
+    #[test]
+    fn backfilled_sessions() {
+        let mut s = Store::new();
+        assert!(s.backfill(
+            "b",
+            "/w/api",
+            "/t/b.jsonl",
+            Some(("Fix auth", TitleSource::Ai)),
+            1_000
+        ));
+        assert!(!s.backfill("b", "/w/api", "/t/b.jsonl", None, 1_000));
+        let b = &s.snapshot()[0];
+        assert_eq!(
+            (b.title.as_str(), b.subtitle.as_str(), b.backfilled),
+            ("Fix auth", "Active before Agentry started", true)
+        );
+        // Expires if nothing happens…
+        assert!(s.tick(1_000 + BACKFILL_TTL_MS + 1));
+        assert!(s.snapshot().is_empty());
+        // …but a live event makes it a normal session.
+        s.backfill("c", "/w/web", "/t/c.jsonl", None, 1_000);
+        ev(
+            &mut s,
+            2_000,
+            json!({"hook_event_name": "UserPromptSubmit", "session_id": "c", "prompt": "go"}),
+        );
+        assert!(!s.tick(2_000 + BACKFILL_TTL_MS + 1));
+        assert!(!s.snapshot()[0].backfilled);
     }
 
     #[test]

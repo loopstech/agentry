@@ -80,3 +80,42 @@ All of these were checked against real sessions. Interactive sessions were drive
 - **Wording.** The countdown reads "widget hands over in 0:48", and the card says "You can also answer in the terminal", which matches what actually happens.
 - **`POST /requests/{id}`** answers a request exactly as the buttons do. Tests and scripts use it; it requires the token like every other route.
 - **Not done:** keyboard shortcuts for Allow and Deny (⌘↵ / ⌘⌫). They need a global shortcut, so they move to Phase 6.
+
+## Phase 4 findings (Claude Code 2.1.325)
+
+- **Transcripts** contain more than messages. Lines Agentry uses:
+  - `user`: a string prompt, or `tool_result` items with `is_error`;
+  - `assistant`: `text` and `tool_use` items;
+  - `ai-title`: Claude Code's generated session title, e.g. "Plan.md bread-baking steps";
+  - `custom-title`: written by `/rename`.
+  - Ignored: `attachment`, `system`, `file-history-*`, `mode`, `permission-mode`, `last-prompt`, `tools-used`, `cost-state`, `atis-latch`.
+- **`/rename` fires no hook.** It only writes a `custom-title` line. So the server re-reads live sessions' transcripts (incrementally) on its 5-second tick, and a rename shows within a few seconds.
+- **Title priority:** `/rename` (or a custom session title), then Claude Code's `ai-title`, then a title made from the prompt, then "New session". Later prompts never replace a better title.
+- **Sessions running before the app started** are picked up from transcripts changed in the last 30 minutes. The title comes from the transcript and the card says "Active before Agentry started".
+  - A transcript doesn't record that a session ended, so a session that exited within the last 30 minutes also appears. It drops off 30 minutes after its last activity, or becomes a normal card as soon as it sends a live event.
+  - Its window isn't known until that first live event (the hook records the terminal), and the ↗ button says so.
+
+## Decisions and deviations in Phase 4
+
+- **The transcript reader** (`crates/agentry-server/src/transcript.rs`) reads incrementally from a remembered offset.
+  - On first open it reads at most the last 4 MB, and at most 8 MB per poll.
+  - It keeps the last 200 steps.
+  - It only opens `.jsonl` files.
+  - `cargo run -p agentry-server --example transcript -- <file>` prints what it reads.
+- **The detail view** polls every 1.5 s while open, and follows new steps unless you've scrolled up. Claude's markdown is flattened to plain text.
+- **Jump to window** (`app/src-tauri/src/focus.rs`):
+
+  | Where the session runs | What ↗ does |
+  |---|---|
+  | iTerm2 | Selects the exact session (AppleScript, `ITERM_SESSION_ID`) |
+  | Terminal.app | Selects the exact tab (AppleScript, matching the tty) |
+  | tmux | Selects the exact pane (`TMUX_PANE`), then brings the outer terminal app forward |
+  | kitty | Focuses the window, if kitty's remote control is on |
+  | WezTerm | Activates the pane |
+  | Ghostty, Warp | Brings the app forward |
+  | VS Code, Cursor, Windsurf, Insiders, VSCodium | Opens `<scheme>://file/<cwd>`: the project window, not the specific Claude panel |
+
+  - Every value put into a script or command is checked against a strict character set first.
+  - The tmux jump was verified for real, both in a test and through the GUI. The AppleScript paths need a Mac.
+- **Use terminal** on a request card hands the request back and also jumps to the session.
+- **macOS Automation permission.** The first jump to iTerm2 or Terminal triggers macOS's prompt to allow controlling that app. The Phase 6 first-run screen should explain this.

@@ -21,6 +21,14 @@ export function Island({ theme }: { theme: Theme }) {
   const { sessions, server } = useSessions();
   const [expanded, setExpanded] = useState(false);
   const [maxPanelHeight, setMaxPanelHeight] = useState<number | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
+  const notify = useCallback((text: string, error = false) => setToast({ text, error }), []);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), toast.error ? 6000 : 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
   const contentRef = useRef<HTMLDivElement>(null);
   const counts = countSessions(sessions);
   const now = useNow(sessions.some(needsUser));
@@ -129,6 +137,12 @@ export function Island({ theme }: { theme: Theme }) {
               </button>
             </header>
 
+            {toast && (
+              <div className={`toast${toast.error ? " toast-error" : ""}`} role="status">
+                {toast.text}
+              </div>
+            )}
+
             {server.error ? (
               <div className="empty">
                 <div className="empty-title">Agentry couldn’t start</div>
@@ -142,7 +156,15 @@ export function Island({ theme }: { theme: Theme }) {
             ) : (
               <ul className="rows">
                 {sessions.map((s) => (
-                  <SessionRow key={s.id} session={s} theme={theme} now={now} />
+                  <SessionRow
+                    key={s.id}
+                    session={s}
+                    theme={theme}
+                    now={now}
+                    open={openRow === s.id}
+                    onToggle={() => setOpenRow((cur) => (cur === s.id ? null : s.id))}
+                    notify={notify}
+                  />
                 ))}
               </ul>
             )}

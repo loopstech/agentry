@@ -93,6 +93,8 @@ export interface Session {
   needsSince: number | null;
   pinned: boolean;
   pending: Pending[];
+  /** Picked up from a transcript at launch; no live event yet. */
+  backfilled: boolean;
 }
 
 export const needsUser = (s: Session) =>

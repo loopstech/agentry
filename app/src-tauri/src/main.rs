@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod focus;
 mod window;
 
 use std::sync::Mutex;
@@ -64,6 +65,63 @@ fn respond_request(
         .respond(&request_id, &response)
 }
 
+/// Bring the session's terminal tab or editor window forward.
+#[tauri::command]
+async fn jump_to_session(
+    status: tauri::State<'_, AppStatus>,
+    id: String,
+) -> Result<String, String> {
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    let session = sessions
+        .ok_or("Agentry isn't ready yet")?
+        .snapshot()
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or("That session is gone")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let w = focus::Where {
+            env: &session.terminal.env,
+            tty: session.terminal.tty.as_deref(),
+            cwd: &session.cwd,
+        };
+        let plan = focus::plan(&w).ok_or_else(|| {
+            if session.backfilled {
+                format!(
+                    "This session started before Agentry, so its window isn't known yet. \
+                     It will be once the session does something. It's in {}.",
+                    session.cwd
+                )
+            } else {
+                format!(
+                    "Agentry doesn't know which window this session is in. It's in {}.",
+                    session.cwd
+                )
+            }
+        })?;
+        focus::run(&plan)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Recent transcript steps for the detail view.
+#[tauri::command]
+async fn get_transcript(
+    status: tauri::State<'_, AppStatus>,
+    id: String,
+) -> Result<Vec<agentry_server::transcript::Step>, String> {
+    let sessions = status
+        .0
+        .lock()
+        .unwrap()
+        .sessions
+        .clone()
+        .ok_or("Agentry isn't ready yet")?;
+    tauri::async_runtime::spawn_blocking(move || sessions.transcript(&id, 50))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn set_panel_open(status: tauri::State<'_, AppStatus>, open: bool) {
     if let Some(s) = status.0.lock().unwrap().sessions.clone() {
@@ -97,6 +155,8 @@ fn main() {
             dismiss_session,
             pin_session,
             respond_request,
+            jump_to_session,
+            get_transcript,
             set_panel_open,
             get_config,
             set_muted,
