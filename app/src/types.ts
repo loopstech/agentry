@@ -59,6 +59,11 @@ export type UiResponse =
   | { action: "terminal" }
   | { action: "answer"; answers: Record<string, string> };
 
+/** How the island is placed: attached to a notch (its size in points), or free. */
+export interface IslandLayout {
+  notch: { width: number; height: number } | null;
+}
+
 export interface Config {
   general: {
     dockIcon: boolean;
@@ -80,6 +85,8 @@ export interface Config {
     /** "#rrggbb", or null for the theme's own accent. */
     accent: string | null;
     hoverToOpen: boolean;
+    /** Attach the island to a MacBook's notch. */
+    notch: boolean;
   };
   sounds: {
     enabled: boolean;

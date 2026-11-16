@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Config, Session, UiResponse } from "./types";
+import type { Config, IslandLayout, Session, UiResponse } from "./types";
 
 export interface ServerInfo {
   port: number | null;
@@ -62,6 +62,19 @@ export function useConfig() {
       return c;
     });
   return { config, setMuted, save };
+}
+
+/** Whether the island is attached to a notch, kept live. */
+export function useLayout() {
+  const [layout, setLayout] = useState<IslandLayout>({ notch: null });
+  useEffect(() => {
+    invoke<IslandLayout>("get_layout").then(setLayout).catch(() => {});
+    const sub = listen<IslandLayout>("agentry://layout", (e) => setLayout(e.payload));
+    return () => {
+      sub.then((off) => off());
+    };
+  }, []);
+  return layout;
 }
 
 export const openSettings = () => invoke<void>("open_settings").catch(() => {});

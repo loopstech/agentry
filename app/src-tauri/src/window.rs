@@ -1,5 +1,7 @@
 //! The island window: placed at the top centre of the screen, kept anchored
 //! there as it grows and shrinks, and remembered where the user drags it.
+//! On a screen with a notch (and with notch mode on) it's attached to the
+//! notch instead, flush with the top of the screen.
 //!
 //! The anchor (the window's top-centre point, in logical pixels) is owned
 //! here rather than re-derived from the window's geometry on each resize:
@@ -33,6 +35,61 @@ struct Anchor {
     top: f64,
 }
 
+/// A screen's notch, in global logical points (origin at the top left of
+/// the main screen, y downwards — the same space as window positions).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Notch {
+    /// The screen's left edge, top edge and width.
+    pub screen_x: f64,
+    pub screen_y: f64,
+    pub screen_width: f64,
+    /// The notch's left edge, width and height (the height is the menu bar's).
+    pub x: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Notch {
+    /// A notch of `width` × `height` centred at the top of a screen (every
+    /// MacBook notch is centred).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn centred(
+        screen_x: f64,
+        screen_y: f64,
+        screen_width: f64,
+        width: f64,
+        height: f64,
+    ) -> Option<Notch> {
+        let sane = width > 0.0 && height > 0.0 && width < screen_width && height < 200.0;
+        sane.then(|| Notch {
+            screen_x,
+            screen_y,
+            screen_width,
+            x: screen_x + (screen_width - width) / 2.0,
+            width,
+            height,
+        })
+    }
+
+    fn anchor(&self) -> Anchor {
+        Anchor {
+            center_x: self.x + self.width / 2.0,
+            top: self.screen_y,
+        }
+    }
+
+    fn on_screen(&self, x: f64) -> bool {
+        x >= self.screen_x && x < self.screen_x + self.screen_width
+    }
+}
+
+/// The notch the island should attach to: the one on the screen the island
+/// would otherwise be on (its saved spot, or the main screen).
+pub fn pick_notch(notches: &[Notch], island_x: f64) -> Option<Notch> {
+    notches.iter().copied().find(|n| n.on_screen(island_x))
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Layout {
     anchor: Anchor,
@@ -46,6 +103,23 @@ struct Layout {
 pub struct Placement {
     layout: Mutex<Option<Layout>>,
     save_generation: AtomicU64,
+    /// Notches on the connected screens, measured at launch.
+    notches: Mutex<Vec<Notch>>,
+    /// The notch the island is attached to, if any.
+    attached: Mutex<Option<Notch>>,
+}
+
+impl Placement {
+    pub fn set_notches(&self, notches: Vec<Notch>) {
+        if !notches.is_empty() {
+            tracing::info!(?notches, "screen notch found");
+        }
+        *self.notches.lock().unwrap() = notches;
+    }
+
+    pub fn attached_notch(&self) -> Option<Notch> {
+        *self.attached.lock().unwrap()
+    }
 }
 
 fn prefs_file() -> PathBuf {
@@ -76,9 +150,12 @@ fn logical_work_area(m: &Monitor) -> (f64, f64, f64, f64) {
     )
 }
 
+/// The monitor holding the anchor point (its whole area, menu bar included).
 fn monitor_for(win: &WebviewWindow, a: Anchor) -> Option<Monitor> {
     win.available_monitors().ok()?.into_iter().find(|m| {
-        let (x, y, w, h) = logical_work_area(m);
+        let s = m.scale_factor();
+        let (x, y) = (m.position().x as f64 / s, m.position().y as f64 / s);
+        let (w, h) = (m.size().width as f64 / s, m.size().height as f64 / s);
         a.center_x >= x && a.center_x <= x + w && a.top >= y - 1.0 && a.top <= y + h
     })
 }
@@ -96,6 +173,14 @@ fn default_anchor(win: &WebviewWindow) -> Option<Anchor> {
     })
 }
 
+/// Where the island goes when it's not on a notch: its saved spot if that's
+/// still on a screen, else the top centre of the main screen.
+fn free_anchor(win: &WebviewWindow) -> Option<Anchor> {
+    load_anchor()
+        .filter(|a| monitor_for(win, *a).is_some())
+        .or_else(|| default_anchor(win))
+}
+
 fn apply(win: &WebviewWindow, placement: &Placement, anchor: Anchor, width: f64, height: f64) {
     let x = anchor.center_x - width / 2.0;
     *placement.layout.lock().unwrap() = Some(Layout {
@@ -107,23 +192,26 @@ fn apply(win: &WebviewWindow, placement: &Placement, anchor: Anchor, width: f64,
     let _ = win.set_position(LogicalPosition::new(x, anchor.top));
 }
 
-/// Put the window at its saved spot if that's still on a screen, else at the
-/// top centre of the main screen.
-pub fn place_initially(win: &WebviewWindow) {
-    let anchor = load_anchor()
-        .filter(|a| monitor_for(win, *a).is_some())
-        .or_else(|| default_anchor(win));
-    let (Some(anchor), Ok(scale), Ok(size)) = (anchor, win.scale_factor(), win.outer_size()) else {
-        return;
+/// Place the island: on the notch of its screen when `notch_mode` is on and
+/// that screen has one, else at its free spot. Returns the notch it's
+/// attached to, if any. Safe to call again when the setting changes.
+pub fn place(win: &WebviewWindow, notch_mode: bool) -> Option<Notch> {
+    let placement = win.state::<Placement>();
+    let free = free_anchor(win)?;
+    let notch = if notch_mode {
+        pick_notch(&placement.notches.lock().unwrap(), free.center_x)
+    } else {
+        None
+    };
+    *placement.attached.lock().unwrap() = notch;
+    let anchor = notch.map(|n| n.anchor()).unwrap_or(free);
+
+    let (Ok(scale), Ok(size)) = (win.scale_factor(), win.outer_size()) else {
+        return notch;
     };
     let size = size.to_logical::<f64>(scale);
-    apply(
-        win,
-        &win.state::<Placement>(),
-        anchor,
-        size.width,
-        size.height,
-    );
+    apply(win, &placement, anchor, size.width, size.height);
+    notch
 }
 
 /// Resize to fit the UI's content, keeping the anchor fixed and the window on
@@ -154,7 +242,8 @@ pub fn set_panel_size(
 }
 
 /// Called on every window move. Moves we caused are ignored; a move by the
-/// user (dragging) sets a new anchor, saved once dragging settles.
+/// user (dragging) sets a new anchor, saved once dragging settles. On a notch
+/// the island stays put.
 pub fn on_moved(win: &Window, position: PhysicalPosition<i32>) {
     let app = win.app_handle();
     let Ok(scale) = win.scale_factor() else {
@@ -162,6 +251,9 @@ pub fn on_moved(win: &Window, position: PhysicalPosition<i32>) {
     };
     let pos = position.to_logical::<f64>(scale);
     let placement = app.state::<Placement>();
+    if placement.attached_notch().is_some() {
+        return;
+    }
     let anchor = {
         let mut layout = placement.layout.lock().unwrap();
         let Some(l) = layout.as_mut() else { return };
@@ -191,4 +283,49 @@ pub fn on_moved(win: &Window, position: PhysicalPosition<i32>) {
             save_anchor(anchor);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A 14" MacBook Pro built-in screen at the origin, and an external
+    // screen to its right.
+    fn builtin() -> Notch {
+        Notch::centred(0.0, 0.0, 1512.0, 186.0, 32.0).unwrap()
+    }
+
+    #[test]
+    fn notch_is_centred_and_anchors_at_the_top() {
+        let n = builtin();
+        assert_eq!(n.x, 663.0);
+        assert_eq!(
+            n.anchor(),
+            Anchor {
+                center_x: 756.0,
+                top: 0.0
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_nonsense_measurements() {
+        assert!(Notch::centred(0.0, 0.0, 1512.0, 0.0, 32.0).is_none());
+        assert!(Notch::centred(0.0, 0.0, 1512.0, 186.0, 0.0).is_none());
+        assert!(Notch::centred(0.0, 0.0, 1512.0, 2000.0, 32.0).is_none());
+    }
+
+    #[test]
+    fn picks_the_notch_on_the_islands_screen() {
+        let notches = [builtin()];
+        // Island on the built-in screen: attach.
+        assert_eq!(pick_notch(&notches, 756.0), Some(builtin()));
+        // Island dragged to an external screen on the right: no notch there.
+        assert_eq!(pick_notch(&notches, 2500.0), None);
+        // No notch at all.
+        assert_eq!(pick_notch(&[], 756.0), None);
+        // An external screen at negative x (left of the main screen).
+        let left = Notch::centred(-1920.0, -200.0, 1920.0, 200.0, 38.0).unwrap();
+        assert_eq!(pick_notch(&[builtin(), left], -900.0), Some(left));
+    }
 }

@@ -119,6 +119,12 @@ export function Settings() {
         </fieldset>
 
         <Toggle
+          label="Attach to the notch"
+          hint="On MacBooks with a notch, the island grows out of it. Turn off to place it anywhere."
+          checked={config.appearance.notch}
+          onChange={(v) => update((c) => (c.appearance.notch = v))}
+        />
+        <Toggle
           label="Open the panel when I hover over it"
           checked={config.appearance.hoverToOpen}
           onChange={(v) => update((c) => (c.appearance.hoverToOpen = v))}

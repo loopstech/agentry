@@ -68,7 +68,7 @@ pub enum Theme {
     Crew,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Appearance {
     pub theme: Theme,
@@ -76,6 +76,19 @@ pub struct Appearance {
     pub accent: Option<String>,
     /// Open the panel when the pointer rests on the pill.
     pub hover_to_open: bool,
+    /// On a screen with a notch, attach the island to it.
+    pub notch: bool,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Appearance {
+            theme: Theme::Mono,
+            accent: None,
+            hover_to_open: false,
+            notch: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -252,6 +265,10 @@ impl Config {
             "appearance.hoverToOpen",
             "true | false — open the panel on hover",
         ),
+        (
+            "appearance.notch",
+            "true | false — attach the island to a MacBook's notch",
+        ),
         ("sounds.enabled", "true | false"),
         ("sounds.volume", "0–100"),
         (
@@ -290,6 +307,7 @@ impl Config {
                 .clone()
                 .unwrap_or_else(|| "default".into()),
             "appearance.hoverToOpen" => self.appearance.hover_to_open.to_string(),
+            "appearance.notch" => self.appearance.notch.to_string(),
             "sounds.enabled" => self.sounds.enabled.to_string(),
             "sounds.volume" => ((self.sounds.volume * 100.0).round() as u32).to_string(),
             "muted" => self.muted.to_string(),
@@ -360,6 +378,7 @@ impl Config {
                 }
             }
             "appearance.hoverToOpen" => self.appearance.hover_to_open = boolean()?,
+            "appearance.notch" => self.appearance.notch = boolean()?,
             "sounds.enabled" => self.sounds.enabled = boolean()?,
             "sounds.volume" => {
                 let n: f32 = v.parse().map_err(|_| "sounds.volume must be 0–100".to_string())?;
@@ -416,6 +435,9 @@ mod tests {
     fn appearance_and_sounds() {
         let mut c = Config::default();
         assert_eq!((c.appearance.theme, c.sounds.enabled), (Theme::Mono, true));
+        assert!(c.appearance.notch, "notch mode is on by default");
+        c.set("appearance.notch", "off").unwrap();
+        assert!(!c.appearance.notch);
         c.set("appearance.theme", "Crew").unwrap();
         c.set("appearance.accent", "#F0a").unwrap();
         c.set("sounds.volume", "35").unwrap();

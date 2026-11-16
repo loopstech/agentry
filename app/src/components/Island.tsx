@@ -13,6 +13,7 @@ import {
   respondRequest,
   setPanelOpen,
   useConfig,
+  useLayout,
   useNow,
   useRequestArrivals,
   useSessions,
@@ -22,6 +23,12 @@ import { Alert, ChevronUp, Gear, Muted, Sound } from "./Icons";
 
 /** Transparent margin around the content, so CSS shadows aren't clipped. */
 const FRAME = 14;
+/** On a notch: no margin at the top (the island is flush with the screen
+ *  edge), room for the shadow and the notch "shoulders" elsewhere. */
+const NOTCH_SIDE = 24;
+const NOTCH_BOTTOM = 28;
+/** Width of each "ear" either side of the notch when sessions exist. */
+const NOTCH_EAR = 72;
 const PANEL_WIDTH = 520;
 const DRAG_THRESHOLD = 4;
 const PILL_AVATARS = 4;
@@ -49,6 +56,10 @@ export function Island() {
   const { config, setMuted } = useConfig();
   const muted = config?.muted ?? false;
   const theme = themeFor(config);
+  const notch = useLayout().notch;
+  const pad = notch
+    ? { top: 0, x: NOTCH_SIDE, bottom: NOTCH_BOTTOM }
+    : { top: FRAME, x: FRAME, bottom: FRAME };
   const hover = useHoverToOpen(
     config?.appearance.hoverToOpen ?? false,
     expanded,
@@ -73,16 +84,18 @@ export function Island() {
     const el = contentRef.current;
     if (!el) return;
     const fit = () => {
-      const want = { width: el.offsetWidth + FRAME * 2, height: el.scrollHeight + FRAME * 2 };
+      const want = { width: el.offsetWidth + pad.x * 2, height: el.scrollHeight + pad.top + pad.bottom };
       invoke<number>("set_panel_size", want)
-        .then((applied) => setMaxPanelHeight(applied < want.height ? applied - FRAME * 2 : null))
+        .then((applied) =>
+          setMaxPanelHeight(applied < want.height ? applied - pad.top - pad.bottom : null),
+        )
         .catch(() => {});
     };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [expanded]);
+  }, [expanded, pad.top, pad.x, pad.bottom]);
 
   // The global shortcut (default ⌥⌘A) opens and closes the panel.
   useEffect(() => {
@@ -111,13 +124,35 @@ export function Island() {
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded, topPermission, notify]);
 
-  const drag = useDragOrClick(() => setExpanded((x) => !x));
+  const toggle = useCallback(() => setExpanded((x) => !x), []);
+  const dragOrClick = useDragOrClick(toggle);
+  // On a notch the island stays put: clicks only.
+  const drag = notch ? { onClick: toggle } : dragOrClick;
   const summary = theme.strings.pillSummary(counts);
 
   return (
-    <div className={`frame ${theme.className}`} style={{ padding: FRAME, ...accentStyle(theme, config) }}>
-      <div ref={contentRef} className="content" {...hover}>
-        {!expanded ? (
+    <div
+      className={`frame ${theme.className}${notch ? " frame-notch" : ""}`}
+      style={{ padding: `${pad.top}px ${pad.x}px ${pad.bottom}px`, ...accentStyle(theme, config) }}
+    >
+      <div
+        ref={contentRef}
+        className={notch ? "content notch-wrap" : "content"}
+        style={notch ? ({ "--notch-h": `${notch.height}px` } as React.CSSProperties) : undefined}
+        {...hover}
+      >
+        {!expanded && notch ? (
+          <NotchPill
+            notchWidth={notch.width}
+            notchHeight={notch.height}
+            sessions={sessions}
+            counts={counts}
+            theme={theme}
+            pulse={pulse}
+            label={`Agentry: ${summary.strong}${summary.rest ? ", " + summary.rest : ""}. Open panel`}
+            onClick={toggle}
+          />
+        ) : !expanded ? (
           <button
             className={`pill${counts.needs ? " pill-needs" : ""}${pulse ? " pill-pulse" : ""}`}
             aria-expanded={false}
@@ -152,7 +187,7 @@ export function Island() {
           </button>
         ) : (
           <section
-            className="panel"
+            className={notch ? "panel panel-notch" : "panel"}
             aria-label="Agentry sessions"
             style={{ width: PANEL_WIDTH, maxHeight: maxPanelHeight ?? undefined }}
           >
@@ -216,6 +251,54 @@ export function Island() {
         )}
       </div>
     </div>
+  );
+}
+
+/** The collapsed island on a notch: a black shape fused to the notch, with
+ *  avatars on the left "ear" and the most important count on the right. With
+ *  no sessions it's exactly the notch's size, so it disappears into it (and
+ *  clicking the notch still opens the panel). */
+function NotchPill(props: {
+  notchWidth: number;
+  notchHeight: number;
+  sessions: ReturnType<typeof useSessions>["sessions"];
+  counts: ReturnType<typeof countSessions>;
+  theme: ReturnType<typeof themeFor>;
+  pulse: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  const { sessions, counts, theme } = props;
+  const ear = sessions.length > 0 ? NOTCH_EAR : 0;
+  const [count, kind] = counts.needs
+    ? [counts.needs, "needs"]
+    : counts.working
+      ? [counts.working, "working"]
+      : [counts.ready + counts.done, "ready"];
+  return (
+    <button
+      className={`notch-pill${props.pulse ? " pill-pulse" : ""}`}
+      style={{ width: props.notchWidth + ear * 2, height: props.notchHeight }}
+      aria-label={props.label}
+      onClick={props.onClick}
+    >
+      {ear > 0 && (
+        <>
+          <span className="notch-ear notch-ear-left">
+            <span className="pill-avatars">
+              {sessions.slice(0, 3).map((s, i) => (
+                <span key={s.id} className="pill-avatar" style={{ zIndex: 3 - i }}>
+                  <theme.Avatar session={s} size="sm" />
+                </span>
+              ))}
+            </span>
+          </span>
+          <span className="notch-ear notch-ear-right">
+            <span className={`notch-count notch-count-${kind}`}>{count}</span>
+          </span>
+        </>
+      )}
+    </button>
   );
 }
 

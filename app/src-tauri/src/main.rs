@@ -157,7 +157,54 @@ fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, String> 
 fn apply_config(app: &tauri::AppHandle, config: &Config) -> Result<(), String> {
     tray::sync(app, config);
     macos::set_dock_icon(app, config.general.dock_icon);
+    apply_notch_mode(app, config.appearance.notch);
     extras::apply_shortcut(app, config)
+}
+
+/// The notch setting as last applied, so other settings changes don't move
+/// the island.
+#[derive(Default)]
+struct NotchMode(Mutex<Option<bool>>);
+
+/// Attach the island to the notch or free it, when the setting changes.
+fn apply_notch_mode(app: &tauri::AppHandle, enabled: bool) {
+    let state = app.state::<NotchMode>();
+    let mut last = state.0.lock().unwrap();
+    if *last == Some(enabled) {
+        return;
+    }
+    *last = Some(enabled);
+    if let Some(main) = app.get_webview_window("main") {
+        let notch = window::place(&main, enabled);
+        let _ = app.emit("agentry://layout", layout_of(notch));
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IslandLayout {
+    /// Set when the island is attached to a notch: its size in points.
+    notch: Option<NotchSize>,
+}
+
+#[derive(Clone, Copy, Serialize)]
+struct NotchSize {
+    width: f64,
+    height: f64,
+}
+
+fn layout_of(notch: Option<window::Notch>) -> IslandLayout {
+    IslandLayout {
+        notch: notch.map(|n| NotchSize {
+            width: n.width,
+            height: n.height,
+        }),
+    }
+}
+
+#[tauri::command]
+fn get_layout(placement: tauri::State<'_, window::Placement>) -> IslandLayout {
+    layout_of(placement.attached_notch())
 }
 
 /// Show or hide the island (menu bar icon).
@@ -345,6 +392,7 @@ fn main() {
         .plugin(extras::autostart_plugin())
         .manage(AppStatus::default())
         .manage(window::Placement::default())
+        .manage(NotchMode::default())
         .invoke_handler(tauri::generate_handler![
             server_info,
             get_sessions,
@@ -369,11 +417,16 @@ fn main() {
             extras::install_cli,
             extras::finish_welcome,
             window::set_panel_size,
+            get_layout,
         ])
         .setup(|app| {
             let config = Config::load(&paths::agentry_home());
             if let Some(main) = app.get_webview_window("main") {
-                window::place_initially(&main);
+                // Measured once at launch (needs the main thread).
+                app.state::<window::Placement>()
+                    .set_notches(macos::notches());
+                window::place(&main, config.appearance.notch);
+                *app.state::<NotchMode>().0.lock().unwrap() = Some(config.appearance.notch);
                 macos::float_everywhere(&main);
                 let _ = main.show();
             }

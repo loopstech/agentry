@@ -164,3 +164,21 @@ All of these were checked against real sessions. Interactive sessions were drive
 - **Install script:** `scripts/install.sh` checks the download's SHA-256, installs to /Applications (or ~/Applications), links the command, and asks before connecting hooks (reading from /dev/tty when piped).
   - `scripts/tests/install-test.sh` runs it against stand-ins for the macOS tools: a fresh install, a re-install, and a tampered download refused. CI runs it with shellcheck.
 - **Still open for the owner:** the bundle ID (`io.loopstech.agentry` is a placeholder), the app icon (placeholder), the tap repository, and the secrets in RELEASING.md. Also still unknown: the minimum Claude Code version for each hook event (see Phase 1 notes).
+
+## Notch mode (added after Phase 6)
+
+- **On by default** (`appearance.notch`). On a screen with a notch the island is attached to it, flush with the top of the screen, above the menu bar. Elsewhere, or with the setting off, it floats below the menu bar as before.
+- **Measuring the notch** (`macos::notches`, at launch on the main thread): a screen has a notch when `NSScreen.safeAreaInsets.top > 0` and it reports `auxiliaryTopLeftArea` / `auxiliaryTopRightArea` (macOS 12+).
+  - The notch's width is the gap between those two areas, and its height is the top inset.
+  - The position is taken as centred on the screen (true of every MacBook), which avoids depending on whether AppKit reports those areas in screen or global coordinates.
+- **Which notch:** the one on the screen the island would otherwise be on (its saved spot, or the main screen). `pick_notch` is pure and unit-tested.
+- **In notch mode the island can't be dragged,** and moves aren't saved. Turning the setting off restores the saved free position.
+- **Look.**
+  - Collapsed, it's a black shape with concave "shoulders" and bottom corners rounded at 14 pt.
+  - Each "ear" either side of the notch is 72 pt when sessions exist. The left ear has up to 3 avatars; the right ear has the most important count.
+  - Expanded, the panel has square top corners and a black inset collar the notch's height, so Crew's navy starts below the notch.
+- **Checking macOS code from Linux:** `cargo check --target aarch64-apple-darwin` works with a stand-in C compiler for `objc2-exception-helper`'s build script (set `CC_aarch64_apple_darwin` and `AR_aarch64_apple_darwin` to no-op scripts). Nothing is linked, so it only type-checks. The notch code and the existing `objc2` code pass `cargo clippy` for that target.
+- **Not handled yet:**
+  - **Screens connected or disconnected while Agentry runs:** notches are measured at launch. Relaunch, or toggle the setting, to pick up a change.
+  - **Other "notch" apps** (e.g. NotchNook) want the same space; turn notch mode off if you use one.
+  - **Status icons right next to the notch** can be covered by the ears.

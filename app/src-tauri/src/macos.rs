@@ -2,6 +2,55 @@
 
 use tauri::{AppHandle, WebviewWindow};
 
+use crate::window::Notch;
+
+/// The notches of the connected screens. Must run on the main thread (it
+/// returns nothing otherwise, and nothing on other platforms).
+///
+/// A screen has a notch when its safe area starts below the top and it
+/// reports unobscured areas either side of the camera housing. The notch's
+/// width is the gap between those areas, and its height is the safe-area
+/// inset (the menu bar's height on such screens).
+pub fn notches() -> Vec<Notch> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::NSScreen;
+
+        let Some(mtm) = MainThreadMarker::new() else {
+            return Vec::new();
+        };
+        let screens = NSScreen::screens(mtm);
+        if screens.count() == 0 {
+            return Vec::new();
+        }
+        // AppKit puts the origin at the bottom left of the main screen;
+        // window positions use the top left.
+        let main_height = screens.objectAtIndex(0).frame().size.height;
+        let mut out = Vec::new();
+        for i in 0..screens.count() {
+            let screen = screens.objectAtIndex(i);
+            let frame = screen.frame();
+            let top_inset = screen.safeAreaInsets().top;
+            let left = screen.auxiliaryTopLeftArea();
+            let right = screen.auxiliaryTopRightArea();
+            if top_inset <= 0.0 || left.size.width <= 0.0 || right.size.width <= 0.0 {
+                continue;
+            }
+            // The same in screen or global coordinates, so no conversion needed.
+            let width = right.origin.x - (left.origin.x + left.size.width);
+            let top = main_height - (frame.origin.y + frame.size.height);
+            if let Some(n) = Notch::centred(frame.origin.x, top, frame.size.width, width, top_inset)
+            {
+                out.push(n);
+            }
+        }
+        out
+    }
+    #[cfg(not(target_os = "macos"))]
+    Vec::new()
+}
+
 /// Let the island show on every Space and on top of full-screen apps.
 ///
 /// tao's "visible on all workspaces" only sets CanJoinAllSpaces; floating over
