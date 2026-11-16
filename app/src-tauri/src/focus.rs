@@ -464,21 +464,36 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let sock = dir.path().join("sock");
         let sock = sock.to_str().unwrap();
+        // `-f /dev/null`: ignore any tmux config on this machine (e.g. a
+        // base-index setting would change window numbers).
         let tmux = |args: &[&str]| {
             let out = Command::new("tmux")
-                .arg("-S")
-                .arg(sock)
+                .args(["-f", "/dev/null", "-S", sock])
                 .args(args)
                 .output()
                 .unwrap();
             String::from_utf8_lossy(&out.stdout).trim().to_string()
         };
+        let active = || tmux(&["display-message", "-p", "-t", "t:", "#{window_id}"]);
+        // tmux applies some changes asynchronously; wait briefly for them.
+        let wait_for = |want: &str| {
+            for _ in 0..50 {
+                if active() == want {
+                    return true;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            false
+        };
+
         tmux(&["new-session", "-d", "-s", "t", "-x", "80", "-y", "20"]);
-        let first_pane = tmux(&["display-message", "-p", "-t", "t:0", "#{pane_id}"]);
-        tmux(&["new-window", "-t", "t"]);
-        assert_eq!(
-            tmux(&["display-message", "-p", "-t", "t", "#{window_index}"]),
-            "1"
+        let first_window = active();
+        let first_pane = tmux(&["display-message", "-p", "-t", "t:", "#{pane_id}"]);
+        let second_window = tmux(&["new-window", "-d", "-P", "-F", "#{window_id}", "-t", "t:"]);
+        tmux(&["select-window", "-t", &second_window]);
+        assert!(
+            wait_for(&second_window),
+            "setup: the second window should be active"
         );
 
         let env = env(&[("TMUX", &format!("{sock},1,0")), ("TMUX_PANE", &first_pane)]);
@@ -489,9 +504,9 @@ mod tests {
         })
         .unwrap();
         assert_eq!(run(&p).unwrap(), "Switched to the session in tmux");
-        assert_eq!(
-            tmux(&["display-message", "-p", "-t", "t", "#{window_index}"]),
-            "0"
+        assert!(
+            wait_for(&first_window),
+            "the jump should select the session's window"
         );
         tmux(&["kill-server"]);
     }
