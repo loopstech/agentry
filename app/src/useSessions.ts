@@ -77,6 +77,13 @@ export interface HooksStatus {
 export const hooksStatus = () => invoke<HooksStatus>("hooks_status");
 export const installHooks = () => invoke<string>("install_hooks");
 export const uninstallHooks = () => invoke<string>("uninstall_hooks");
+export const getLaunchAtLogin = () => invoke<boolean>("get_launch_at_login");
+export const setLaunchAtLogin = (enabled: boolean) => invoke<boolean>("set_launch_at_login", { enabled });
+export const checkUpdates = () => invoke<string>("check_updates");
+export const restartApp = () => invoke<void>("restart_app");
+export const installCli = () => invoke<string>("install_cli");
+export const finishWelcome = () => invoke<void>("finish_welcome");
+
 export const playSound = (cue: "needs_you" | "finished") => invoke<void>("play_sound", { cue }).catch(() => {});
 
 /** Calls `onRequest` when a new request arrives in the widget. */

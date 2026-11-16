@@ -6,3 +6,5 @@ app/src-tauri/target/
 .DS_Store
 *.agentry-backup-*
 *.tsbuildinfo
+app/src-tauri/binaries/
+app/src-tauri/tauri.ci.json

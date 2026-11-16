@@ -60,6 +60,13 @@ export type UiResponse =
   | { action: "answer"; answers: Record<string, string> };
 
 export interface Config {
+  general: {
+    dockIcon: boolean;
+    /** e.g. "CommandOrControl+Alt+A"; null = off. */
+    shortcut: string | null;
+    autoUpdate: boolean;
+  };
+  onboarded: boolean;
   approvals: {
     mode: "widget_first" | "terminal_only" | "widget_when_visible";
     timeoutSecs: number | null;

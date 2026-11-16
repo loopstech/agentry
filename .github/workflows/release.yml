@@ -1,0 +1,132 @@
+name: Release
+
+# Push a tag like v0.2.0 to build a draft GitHub Release. Publish the draft
+# when you're happy; that also updates the Homebrew cask (homebrew.yml).
+#
+# Optional secrets (the build still works without them, unsigned):
+#   Signing and notarisation (needs an Apple Developer account):
+#     APPLE_CERTIFICATE           base64 of your "Developer ID Application" .p12
+#     APPLE_CERTIFICATE_PASSWORD  its export password
+#     APPLE_SIGNING_IDENTITY      e.g. "Developer ID Application: Loops Tech (TEAMID)"
+#     APPLE_ID                    your Apple ID email
+#     APPLE_PASSWORD              an app-specific password for it
+#     APPLE_TEAM_ID               your 10-character team id
+#   Auto-update:
+#     TAURI_SIGNING_PRIVATE_KEY           from `pnpm tauri signer generate`
+#     TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+#   and the matching public key as the repository *variable* UPDATER_PUBKEY.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
+          if [ "$tag" != "$app" ]; then
+            echo "::error::Tag v$tag doesn't match tauri.conf.json version $app"; exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install UI dependencies
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the bundled hook and CLI (universal)
+        run: scripts/build-sidecars.sh universal
+
+      - name: Release config (sidecars, plus updates when a key is set up)
+        env:
+          UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+          HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          node - <<'JS'
+          const fs = require("fs");
+          const conf = JSON.parse(fs.readFileSync("app/src-tauri/tauri.release.json", "utf8"));
+          if (process.env.UPDATER_PUBKEY && process.env.HAS_UPDATER_KEY === "true") {
+            conf.bundle.createUpdaterArtifacts = true;
+            conf.plugins = { updater: {
+              pubkey: process.env.UPDATER_PUBKEY,
+              endpoints: ["https://github.com/${{ github.repository }}/releases/latest/download/latest.json"],
+            } };
+            console.log("Auto-update enabled for this build");
+          } else {
+            console.log("::warning::No updater key; this build won't auto-update");
+          }
+          fs.writeFileSync("app/src-tauri/tauri.ci.json", JSON.stringify(conf, null, 2));
+          JS
+
+      # Export only the secrets that are set: empty values would make the
+      # build try to sign or notarise with blanks and fail.
+      - name: Signing secrets that are set
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID \
+                   APPLE_PASSWORD APPLE_TEAM_ID TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            if [ -n "${!v}" ]; then
+              { echo "$v<<__AGENTRY_EOF__"; echo "${!v}"; echo "__AGENTRY_EOF__"; } >> "$GITHUB_ENV"
+              echo "$v: set"
+            else
+              echo "$v: not set"
+            fi
+          done
+          [ -n "$APPLE_SIGNING_IDENTITY" ] || echo "::warning::Not signed: macOS will warn people opening this build"
+
+      - name: Build, sign, notarise and draft the release
+        id: tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tauriScript: pnpm tauri
+          args: --target universal-apple-darwin --config src-tauri/tauri.ci.json
+          tagName: ${{ github.ref_name }}
+          releaseName: Agentry ${{ github.ref_name }}
+          releaseBody: See the README for install instructions.
+          releaseDraft: true
+          includeUpdaterJson: true
+
+      - name: Upload checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          dmg=$(node -p "JSON.parse(process.env.ARTIFACTS).find(p => p.endsWith('.dmg'))")
+          cp "$dmg" Agentry.dmg
+          shasum -a 256 Agentry.dmg > SHA256SUMS
+          cat SHA256SUMS
+          # A stable name too, so the install script can always fetch …/latest/download/Agentry.dmg
+          gh release upload "${{ github.ref_name }}" Agentry.dmg SHA256SUMS --clobber

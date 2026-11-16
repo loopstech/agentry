@@ -95,12 +95,39 @@ impl Default for Sounds {
     }
 }
 
+/// The default global shortcut that opens and closes the panel.
+pub const DEFAULT_SHORTCUT: &str = "CommandOrControl+Alt+A";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct General {
+    /// Show a Dock icon (otherwise Agentry lives in the menu bar only).
+    pub dock_icon: bool,
+    /// Global shortcut to open and close the panel; `None` = off.
+    pub shortcut: Option<String>,
+    /// Download and install updates automatically.
+    pub auto_update: bool,
+}
+
+impl Default for General {
+    fn default() -> Self {
+        General {
+            dock_icon: false,
+            shortcut: Some(DEFAULT_SHORTCUT.into()),
+            auto_update: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Config {
+    pub general: General,
     pub approvals: Approvals,
     pub appearance: Appearance,
     pub sounds: Sounds,
+    /// The first-run welcome has been completed.
+    pub onboarded: bool,
     /// Quiet mode: no sounds, and every prompt goes to the terminal.
     pub muted: bool,
 }
@@ -207,6 +234,15 @@ impl Config {
             "approvals.autoOpen",
             "true | false — open the panel when a request arrives",
         ),
+        (
+            "general.dockIcon",
+            "true | false — show a Dock icon as well as the menu bar icon",
+        ),
+        (
+            "general.shortcut",
+            "e.g. CommandOrControl+Alt+A, or \"off\"",
+        ),
+        ("general.autoUpdate", "true | false"),
         ("appearance.theme", "mono | crew"),
         (
             "appearance.accent",
@@ -237,6 +273,13 @@ impl Config {
             "approvals.alwaysAllow" => a.always_allow.to_string(),
             "approvals.answerQuestions" => a.answer_questions.to_string(),
             "approvals.autoOpen" => a.auto_open.to_string(),
+            "general.dockIcon" => self.general.dock_icon.to_string(),
+            "general.shortcut" => self
+                .general
+                .shortcut
+                .clone()
+                .unwrap_or_else(|| "off".into()),
+            "general.autoUpdate" => self.general.auto_update.to_string(),
             "appearance.theme" => match self.appearance.theme {
                 Theme::Mono => "mono".into(),
                 Theme::Crew => "crew".into(),
@@ -291,6 +334,17 @@ impl Config {
             "approvals.alwaysAllow" => a.always_allow = boolean()?,
             "approvals.answerQuestions" => a.answer_questions = boolean()?,
             "approvals.autoOpen" => a.auto_open = boolean()?,
+            "general.dockIcon" => self.general.dock_icon = boolean()?,
+            "general.autoUpdate" => self.general.auto_update = boolean()?,
+            "general.shortcut" => {
+                self.general.shortcut = if v.eq_ignore_ascii_case("off") || v.is_empty() {
+                    None
+                } else if v.len() <= 64 && v.chars().all(|c| c.is_ascii_alphanumeric() || "+-=,./;'[]\\`".contains(c)) {
+                    Some(v.to_string())
+                } else {
+                    return Err("general.shortcut must look like CommandOrControl+Alt+A, or be \"off\"".into());
+                }
+            }
             "appearance.theme" => {
                 self.appearance.theme = match v.to_ascii_lowercase().as_str() {
                     "mono" => Theme::Mono,
@@ -382,6 +436,19 @@ mod tests {
         .unwrap();
         let c = Config::load(dir.path());
         assert_eq!((c.appearance.accent, c.sounds.volume), (None, 1.0));
+    }
+
+    #[test]
+    fn general_settings() {
+        let mut c = Config::default();
+        assert_eq!(c.general.shortcut.as_deref(), Some(DEFAULT_SHORTCUT));
+        assert!(!c.general.dock_icon && c.general.auto_update && !c.onboarded);
+        c.set("general.shortcut", "off").unwrap();
+        assert_eq!(c.get("general.shortcut").unwrap(), "off");
+        c.set("general.shortcut", "Alt+Shift+Space").unwrap();
+        assert!(c.set("general.shortcut", "rm -rf /").is_err());
+        c.set("general.dockIcon", "yes").unwrap();
+        assert!(c.general.dock_icon);
     }
 
     #[test]

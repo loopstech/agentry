@@ -67,7 +67,7 @@ All of these were checked against real sessions. Interactive sessions were drive
   - `/rename <name>` typed in a session also sets the title.
 - **Avatar initials.** They split on case and digit boundaries ("projA" becomes "PA"). For a single word they use the first letter plus the next consonant ("web" becomes "WB", "docs" becomes "DC").
 - **Anchoring the window.** The app keeps the island's top-centre anchor itself, instead of re-reading the window's geometry on every resize. Re-reading made the window drift sideways when resizes arrived in quick succession (seen on Linux/X11). Moves the app causes itself are ignored; only user drags change the anchor, which is saved to `~/.agentry/window.json`.
-- **Dock icon and quitting.** There's still a Dock icon, so the app can be quit normally (⌘Q). It becomes a menu bar–only app with a menu bar icon in Phase 6.
+- **Dock icon and quitting.** Superseded in Phase 6: Agentry is now a menu bar app (no Dock icon unless you turn it on), quit from the menu bar icon.
 - **Full-screen apps.** `visibleOnAllWorkspaces` covers Spaces. Showing over full-screen apps needs an extra macOS window setting; that's planned for Phase 6.
 - **First run of a new binary on macOS** takes a few hundred ms, because macOS scans a freshly built, unsigned binary the first time it runs. CI caught this in Phase 1, and the timing tests now warm the binary up first. Signed and notarised builds (Phase 6) should be checked for this too.
 - **Not done yet:** backfilling sessions that were already running when the app started. This moves to Phase 4, alongside transcript reading.
@@ -142,3 +142,25 @@ All of these were checked against real sessions. Interactive sessions were drive
 - **"MCP tools"** in the tool list matches every `mcp__*` tool.
 - **Bug found while testing:** move events from the Settings window were being treated as the island being dragged, so the island reopened where Settings had been. Only the island's own moves count now.
 - **Not done:** titles via Haiku (dropped earlier in favour of Claude Code's own titles); light variants of the themes (later, as planned).
+
+## Decisions and deviations in Phase 6
+
+- **Menu bar app.** `Info.plist` sets `LSUIElement`, so there's no Dock icon flash at launch; "Show a Dock icon" switches the activation policy at runtime. The menu bar icon is a template image (it follows light and dark menu bars) with Show or Hide, Settings…, Quiet Mode (kept in sync) and Quit.
+- **Over full-screen apps.** tao only sets CanJoinAllSpaces, so `macos.rs` also sets FullScreenAuxiliary, Stationary and IgnoresCycle through `objc2`, and raises the window level to NSStatusWindowLevel. This code only compiles on macOS; the macOS CI job builds it, but whether it shows over full-screen apps still needs checking on a real Mac.
+- **Global shortcut:** ⌥⌘A by default (`general.shortcut`, changeable or "off"). It opens and closes the panel and focuses it, so ⌘↵ / ⌘⌫ (allow / deny the top request) work without the mouse. Those two are panel-only, so they never take over the keys in your terminal.
+- **Single instance.** Launching Agentry again opens the running one's panel. On Linux this needs a D-Bus session (desktops have one; the bare test container didn't). macOS doesn't use D-Bus.
+- **Launch at login** uses tauri-plugin-autostart (a LaunchAgent on macOS). It's the operating system's own setting, not something stored in `config.json`.
+- **Updates** use tauri-plugin-updater with the GitHub Releases feed (`latest.json`).
+  - The plugin is only registered when the build has an updater config, which the release workflow adds once the key exists. Local builds say "Updates aren't set up in this build".
+  - Updates install automatically when allowed, and the new version runs after a restart (Settings → Updates shows "Restart to update").
+- **Packaging.** `agentry-hook` and `agentry` are bundled as Tauri sidecars, so they sit next to the app binary.
+  - They're configured in `tauri.release.json`, so dev builds and CI tests don't need them.
+  - `scripts/build-sidecars.sh universal` makes Apple Silicon + Intel binaries with `lipo`.
+  - Verified with a Linux `.deb`: the app, `agentry` and `agentry-hook` all landed in `/usr/bin`. A fresh user then went through the welcome screen and "Connect to Claude Code" (hooks pointed at the bundled `/usr/bin/agentry-hook`), the command install (`/usr/local/bin/agentry` linked) and open at login (autostart entry written).
+- **Release pipeline:**
+  - `release.yml` (on a `v*` tag): checks that the tag matches the app version, builds the universal sidecars, then signs and notarises only when the Apple secrets exist. It enables updates only when the key exists, drafts the release, and uploads `Agentry.dmg` and `SHA256SUMS` under stable names.
+  - `homebrew.yml` (on publish): renders the cask from `packaging/homebrew/agentry.rb` and pushes it to the tap. The cask's uninstall step removes the hooks.
+  - Neither workflow has run yet (that needs a tag), and the actionlint binary couldn't be run here. Expect to fix small things on the first real release.
+- **Install script:** `scripts/install.sh` checks the download's SHA-256, installs to /Applications (or ~/Applications), links the command, and asks before connecting hooks (reading from /dev/tty when piped).
+  - `scripts/tests/install-test.sh` runs it against stand-ins for the macOS tools: a fresh install, a re-install, and a tampered download refused. CI runs it with shellcheck.
+- **Still open for the owner:** the bundle ID (`io.loopstech.agentry` is a placeholder), the app icon (placeholder), the tap repository, and the secrets in RELEASING.md. Also still unknown: the minimum Claude Code version for each hook event (see Phase 1 notes).

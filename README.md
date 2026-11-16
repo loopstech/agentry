@@ -2,12 +2,41 @@
 
 A small always-on-top macOS widget that shows every running Claude Code session. You can approve permissions and answer Claude's questions from it, and jump back to the session's window.
 
-> **Status: Phase 5 (themes and settings).**
-> - Every session shows live in the island, with its recent steps.
-> - You can approve, deny and answer Claude from it, and jump to the session's window.
-> - It now has two themes, **Mono** and **Crew**, an accent colour picker, sounds, hover-to-open, and a Settings window.
->
-> Next: packaging and release (Phase 6). See [PLAN.md](PLAN.md).
+> **Status: Phase 6 (ready to release).** Every session shows live in the island. You can approve, deny and answer Claude from it, open a session's recent steps, and jump to its window. It has two themes and a Settings window, lives in the menu bar, and ships as a signed app with auto-updates (once the release secrets are set up; see [RELEASING.md](RELEASING.md)).
+
+## Install
+
+**Install script** (downloads the latest release, checks its checksum, installs the app and the `agentry` command, and asks before connecting to Claude Code):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/loopstech/Agentry/main/scripts/install.sh | sh
+```
+
+**Homebrew:**
+
+```sh
+brew install --cask loopstech/tap/agentry
+```
+
+**Download:** grab `Agentry.dmg` from [Releases](https://github.com/loopstech/Agentry/releases) and drag Agentry to Applications.
+
+On first launch a welcome screen offers to **Connect to Claude Code**: it adds Agentry's hooks to `~/.claude/settings.json`, backing the file up first. You can also install the `agentry` command and choose a look there.
+
+- **Open the panel:** click the pill under the menu bar, press **⌥⌘A** from any app, or use the menu bar icon.
+- **Approve from the keyboard:** with the panel open, **⌘↵** allows and **⌘⌫** denies the top request.
+
+### Uninstall
+
+- **Homebrew:** `brew uninstall --cask agentry` removes the hooks too. Add `--zap` to also remove settings.
+- **Otherwise:**
+
+  ```sh
+  agentry hooks uninstall     # removes only Agentry's hooks; your settings are backed up first
+  rm -rf /Applications/Agentry.app ~/.agentry
+  rm -f "$(command -v agentry)"
+  ```
+
+  Then turn off "Open Agentry when I log in" in Settings before deleting the app, or remove `~/Library/LaunchAgents/Agentry.plist`.
 
 ## How it works
 
@@ -22,7 +51,7 @@ If the app isn't running, the hook exits immediately and silently, so Claude Cod
 | Agentry app | Tauri app. Runs the local server and the island widget. |
 | `agentry-devserver` | The app's server without a window, for development. |
 
-## Testing on a Mac
+## Testing from source on a Mac
 
 You need the Xcode Command Line Tools, Rust (via [rustup](https://rustup.rs)), Node 20+ and pnpm (`npm i -g pnpm`).
 
@@ -46,6 +75,16 @@ cd Agentry
 ```
 
 A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it.
+
+### Phase 6 checks
+
+1. **Menu bar.** There's no Dock icon. A menu bar icon offers Show or Hide, Settings…, Quiet Mode and Quit. "Show a Dock icon" in Settings brings the Dock icon back.
+2. **Shortcut.** Press **⌥⌘A** in any app: the panel opens, and pressing it again closes it. With a request waiting, ⌘↵ allows it and ⌘⌫ denies it. Change or turn off the shortcut in Settings.
+3. **Full-screen apps.** Put a terminal in full screen. The island should still float on top.
+4. **Only one Agentry.** Launching it again just opens the panel of the running one.
+5. **Welcome.** Remove `"onboarded"` from `~/.agentry/config.json` and relaunch. The welcome screen appears and walks through connecting, installing the command and picking a theme.
+6. **Open at login.** Toggle it in Settings (General), log out and back in.
+7. **Release build.** Follow [RELEASING.md](RELEASING.md) → *Building locally*. The app should contain `Contents/MacOS/agentry-hook` and `agentry`, and "Connect to Claude Code" should point at those.
 
 ### Phase 5 checks
 

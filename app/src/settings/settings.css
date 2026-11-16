@@ -275,6 +275,50 @@
   background: var(--on-accent);
 }
 
+.text-input {
+  height: 30px;
+  min-width: 220px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-3);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Welcome */
+.welcome h1 {
+  margin-bottom: 6px;
+}
+.welcome-lead {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.welcome .step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.welcome-done {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 18px;
+  border-top: 1px solid var(--surface-3);
+}
+
 .integration {
   display: flex;
   flex-direction: column;

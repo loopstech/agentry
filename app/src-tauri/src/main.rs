@@ -2,8 +2,11 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod extras;
 mod focus;
+mod macos;
 mod sounds;
+mod tray;
 mod window;
 
 use std::sync::Mutex;
@@ -137,15 +140,71 @@ fn get_config() -> Config {
     Config::load(&paths::agentry_home())
 }
 
-/// Save settings and tell every window straight away.
+/// Save settings, apply them, and tell every window straight away.
 #[tauri::command]
 fn save_config(app: tauri::AppHandle, config: Config) -> Result<Config, String> {
     let config = config.sanitized();
     config
         .save(&paths::agentry_home())
         .map_err(|e| e.to_string())?;
+    let shortcut = apply_config(&app, &config);
     let _ = app.emit("agentry://config", &config);
-    Ok(config)
+    shortcut.map(|()| config)
+}
+
+/// Side effects of settings outside the webviews. Returns a shortcut error,
+/// if the shortcut couldn't be registered.
+fn apply_config(app: &tauri::AppHandle, config: &Config) -> Result<(), String> {
+    tray::sync(app, config);
+    macos::set_dock_icon(app, config.general.dock_icon);
+    extras::apply_shortcut(app, config)
+}
+
+/// Show or hide the island (menu bar icon).
+pub fn toggle_island(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        if w.is_visible().unwrap_or(true) {
+            let _ = w.hide();
+        } else {
+            let _ = w.show();
+        }
+    }
+}
+
+/// Open or close the panel (global shortcut). Brings the island back if it
+/// was hidden, and focuses it so ⌘↵ / ⌘⌫ work.
+pub fn toggle_panel(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    let _ = app.emit("agentry://toggle-panel", ());
+}
+
+/// Open the Settings window on `page` ("settings" or "welcome").
+pub fn open_window(app: &tauri::AppHandle, page: &str) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        return w.set_focus().map_err(|e| e.to_string());
+    }
+    let title = if page == "welcome" {
+        "Welcome to Agentry"
+    } else {
+        "Agentry Settings"
+    };
+    WebviewWindowBuilder::new(
+        app,
+        "settings",
+        WebviewUrl::App(format!("index.html#{page}").into()),
+    )
+    .title(title)
+    .inner_size(620.0, 720.0)
+    .min_inner_size(480.0, 480.0)
+    .center()
+    .build()
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -164,22 +223,7 @@ fn play_sound(cue: sounds::Cue) {
 
 #[tauri::command]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(w) = app.get_webview_window("settings") {
-        let _ = w.unminimize();
-        return w.set_focus().map_err(|e| e.to_string());
-    }
-    WebviewWindowBuilder::new(
-        &app,
-        "settings",
-        WebviewUrl::App("index.html#settings".into()),
-    )
-    .title("Agentry Settings")
-    .inner_size(620.0, 720.0)
-    .min_inner_size(480.0, 480.0)
-    .center()
-    .build()
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    open_window(&app, "settings")
 }
 
 #[derive(Serialize)]
@@ -274,7 +318,16 @@ fn watch_config(app: tauri::AppHandle) {
             let now = modified();
             if now != last {
                 last = now;
-                let _ = app.emit("agentry://config", Config::load(&paths::agentry_home()));
+                let config = Config::load(&paths::agentry_home());
+                // Window, tray and shortcut changes belong on the main thread.
+                let handle = app.clone();
+                let c = config.clone();
+                let _ = app.run_on_main_thread(move || {
+                    if let Err(e) = apply_config(&handle, &c) {
+                        tracing::warn!("{e}");
+                    }
+                });
+                let _ = app.emit("agentry://config", config);
             }
         }
     });
@@ -284,6 +337,12 @@ fn main() {
     init_logging();
 
     let app = tauri::Builder::default()
+        // Must be first: launching Agentry again just brings this one forward.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            toggle_panel(app);
+        }))
+        .plugin(extras::shortcut_plugin())
+        .plugin(extras::autostart_plugin())
         .manage(AppStatus::default())
         .manage(window::Placement::default())
         .invoke_handler(tauri::generate_handler![
@@ -303,13 +362,32 @@ fn main() {
             hooks_status,
             install_hooks,
             uninstall_hooks,
+            extras::get_launch_at_login,
+            extras::set_launch_at_login,
+            extras::check_updates,
+            extras::restart_app,
+            extras::install_cli,
+            extras::finish_welcome,
             window::set_panel_size,
         ])
         .setup(|app| {
+            let config = Config::load(&paths::agentry_home());
             if let Some(main) = app.get_webview_window("main") {
                 window::place_initially(&main);
+                macos::float_everywhere(&main);
                 let _ = main.show();
             }
+            if let Err(e) = tray::create(app.handle()) {
+                tracing::warn!("couldn't create the menu bar icon: {e}");
+            }
+            if let Err(e) = apply_config(app.handle(), &config) {
+                tracing::warn!("{e}");
+            }
+            if extras::updates_configured(app.handle()) {
+                app.handle().plugin(extras::updater_plugin())?;
+                extras::schedule_update_checks(app.handle().clone());
+            }
+            extras::maybe_welcome(app.handle());
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move { run_server(handle).await });
             watch_config(app.handle().clone());

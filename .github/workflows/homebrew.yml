@@ -1,0 +1,73 @@
+name: Homebrew
+
+# When a release is published, update the cask in the tap repository.
+# Needs: the tap repository (repository variable HOMEBREW_TAP, default
+# loopstech/homebrew-tap) and a secret HOMEBREW_TAP_TOKEN that can push to it.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish to the tap (e.g. v0.2.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  cask:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TAP: ${{ vars.HOMEBREW_TAP || 'loopstech/homebrew-tap' }}
+    steps:
+      # `secrets` can't be used in a job-level `if`, so check here.
+      - name: Is the tap set up?
+        id: check
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -n "$TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::HOMEBREW_TAP_TOKEN isn't set; skipping the Homebrew cask update"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
+
+      - name: Checksum from the release
+        if: steps.check.outputs.ok == 'true'
+        id: sum
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$TAG" --repo "${{ github.repository }}" --pattern SHA256SUMS
+          echo "sha256=$(awk '/Agentry.dmg/ {print $1}' SHA256SUMS)" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.ok == 'true'
+        with:
+          repository: ${{ env.TAP }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write the cask
+        if: steps.check.outputs.ok == 'true'
+        run: |
+          mkdir -p tap/Casks
+          sed -e "s/{{VERSION}}/${{ steps.sum.outputs.version }}/" \
+              -e "s/{{SHA256}}/${{ steps.sum.outputs.sha256 }}/" \
+              -e "s#{{REPO}}#${{ github.repository }}#" \
+              packaging/homebrew/agentry.rb > tap/Casks/agentry.rb
+          cat tap/Casks/agentry.rb
+
+      - name: Push
+        if: steps.check.outputs.ok == 'true'
+        working-directory: tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/agentry.rb
+          git commit -m "agentry ${{ steps.sum.outputs.version }}" || exit 0
+          git push

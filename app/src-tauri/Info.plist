@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Start as a menu bar app (no Dock icon flash); the Dock icon setting
+       switches it on at runtime. -->
+  <key>LSUIElement</key>
+  <true/>
+  <!-- Shown when macOS asks to let Agentry control iTerm2 or Terminal. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Agentry brings the terminal tab running your Claude Code session to the front.</string>
+</dict>
+</plist>

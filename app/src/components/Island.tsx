@@ -7,7 +7,16 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { accentStyle, themeFor } from "../themes";
 import { countSessions, needsUser } from "../types";
 import { plural } from "../format";
-import { openSettings, setPanelOpen, useConfig, useNow, useRequestArrivals, useSessions } from "../useSessions";
+import { listen } from "@tauri-apps/api/event";
+import {
+  openSettings,
+  respondRequest,
+  setPanelOpen,
+  useConfig,
+  useNow,
+  useRequestArrivals,
+  useSessions,
+} from "../useSessions";
 import { SessionRow } from "./SessionRow";
 import { Alert, ChevronUp, Gear, Muted, Sound } from "./Icons";
 
@@ -75,11 +84,32 @@ export function Island() {
     return () => ro.disconnect();
   }, [expanded]);
 
+  // The global shortcut (default ⌥⌘A) opens and closes the panel.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setExpanded(false);
+    const sub = listen("agentry://toggle-panel", () => setExpanded((x) => !x));
+    return () => {
+      sub.then((off) => off());
+    };
+  }, []);
+
+  // Esc closes; ⌘↵ allows and ⌘⌫ denies the top permission request.
+  const topPermission = sessions.flatMap((s) => s.pending).find((p) => p.kind === "permission");
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return setExpanded(false);
+      if (!expanded || !topPermission || !(e.metaKey || e.ctrlKey)) return;
+      if (document.activeElement instanceof HTMLInputElement) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        respondRequest(topPermission.id, { action: "allow" }).catch((err) => notify(String(err), true));
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        respondRequest(topPermission.id, { action: "deny" }).catch((err) => notify(String(err), true));
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [expanded, topPermission, notify]);
 
   const drag = useDragOrClick(() => setExpanded((x) => !x));
   const summary = theme.strings.pillSummary(counts);

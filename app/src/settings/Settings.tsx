@@ -3,13 +3,19 @@
 
 import "./settings.css";
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { THEMES, accentStyle, themeFor } from "../themes";
 import type { Theme } from "../themes/types";
 import type { Config, Session } from "../types";
 import {
+  checkUpdates,
+  getLaunchAtLogin,
   hooksStatus,
+  installCli,
   installHooks,
   playSound,
+  restartApp,
+  setLaunchAtLogin,
   uninstallHooks,
   useConfig,
   type HooksStatus,
@@ -69,29 +75,20 @@ export function Settings() {
         </p>
       )}
 
+      <Section title="General">
+        <LaunchAtLogin />
+        <Toggle
+          label="Show a Dock icon"
+          hint="Agentry always has a menu bar icon."
+          checked={config.general.dockIcon}
+          onChange={(v) => update((c) => (c.general.dockIcon = v))}
+        />
+        <ShortcutSetting config={config} update={update} />
+        <CliInstall />
+      </Section>
+
       <Section title="Appearance">
-        <fieldset className="theme-picker">
-          <legend>Theme</legend>
-          {THEMES.map((t) => (
-            <label key={t.id} className={`theme-card${t.id === theme.id ? " is-selected" : ""}`}>
-              <input
-                type="radio"
-                name="theme"
-                checked={t.id === theme.id}
-                onChange={() =>
-                  update((c) => {
-                    c.appearance.theme = t.id;
-                    // An accent picked for one theme rarely suits the other.
-                    c.appearance.accent = null;
-                  })
-                }
-              />
-              <ThemePreview theme={t} config={config} />
-              <span className="theme-card-name">{t.name}</span>
-              <span className="theme-card-description">{t.description}</span>
-            </label>
-          ))}
-        </fieldset>
+        <ThemePicker config={config} update={update} />
 
         <fieldset className="field-group">
           <legend>Accent colour</legend>
@@ -249,6 +246,15 @@ export function Settings() {
         <Integration />
       </Section>
 
+      <Section title="Updates">
+        <Toggle
+          label="Install updates automatically"
+          checked={config.general.autoUpdate}
+          onChange={(v) => update((c) => (c.general.autoUpdate = v))}
+        />
+        <Updates />
+      </Section>
+
       <Section title="About">
         <p className="hint">
           Agentry {pkg.version} · MIT licence · github.com/loopstech/Agentry
@@ -258,7 +264,175 @@ export function Settings() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+type Update = (change: (c: Config) => void) => void;
+
+export function ThemePicker({ config, update }: { config: Config; update: Update }) {
+  const theme = themeFor(config);
+  return (
+    <fieldset className="theme-picker">
+      <legend>Theme</legend>
+      {THEMES.map((t) => (
+        <label key={t.id} className={`theme-card${t.id === theme.id ? " is-selected" : ""}`}>
+          <input
+            type="radio"
+            name="theme"
+            checked={t.id === theme.id}
+            onChange={() =>
+              update((c) => {
+                c.appearance.theme = t.id;
+                // An accent picked for one theme rarely suits the other.
+                c.appearance.accent = null;
+              })
+            }
+          />
+          <ThemePreview theme={t} config={config} />
+          <span className="theme-card-name">{t.name}</span>
+          <span className="theme-card-description">{t.description}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+export function LaunchAtLogin() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    getLaunchAtLogin().then(setOn, () => setOn(false));
+  }, []);
+  if (on === null) return null;
+  return (
+    <>
+      <Toggle
+        label="Open Agentry when I log in"
+        checked={on}
+        onChange={(v) =>
+          setLaunchAtLogin(v).then(
+            (actual) => {
+              setOn(actual);
+              setError(null);
+            },
+            (e) => setError(String(e)),
+          )
+        }
+      />
+      {error && <p className="settings-error">{error}</p>}
+    </>
+  );
+}
+
+/** "CommandOrControl+Alt+A" → "⌥⌘A" (macOS order: ⌃⌥⇧⌘). */
+export function prettyShortcut(s: string): string {
+  const parts = s.split("+").map((p) => p.trim());
+  const mods: Record<string, string> = {
+    control: "⌃",
+    ctrl: "⌃",
+    alt: "⌥",
+    option: "⌥",
+    shift: "⇧",
+    commandorcontrol: "⌘",
+    cmdorctrl: "⌘",
+    command: "⌘",
+    cmd: "⌘",
+    super: "⌘",
+    meta: "⌘",
+  };
+  const order = ["⌃", "⌥", "⇧", "⌘"];
+  const syms = parts.map((p) => mods[p.toLowerCase()]).filter(Boolean) as string[];
+  const key = parts.filter((p) => !mods[p.toLowerCase()]).join("+");
+  return order.filter((o) => syms.includes(o)).join("") + key.toUpperCase();
+}
+
+function ShortcutSetting({ config, update }: { config: Config; update: Update }) {
+  const current = config.general.shortcut;
+  const [draft, setDraft] = useState(current ?? "CommandOrControl+Alt+A");
+  useEffect(() => setDraft(current ?? "CommandOrControl+Alt+A"), [current]);
+  return (
+    <>
+      <Toggle
+        label={current ? `Open the panel with ${prettyShortcut(current)}` : "Keyboard shortcut to open the panel"}
+        hint="Works from any app. ⌘↵ and ⌘⌫ then allow or deny the top request."
+        checked={current !== null}
+        onChange={(v) => update((c) => (c.general.shortcut = v ? draft : null))}
+      />
+      {current !== null && (
+        <label className="select-row">
+          <span className="hint">Shortcut</span>
+          <input
+            className="text-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => draft !== current && update((c) => (c.general.shortcut = draft.trim() || null))}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+        </label>
+      )}
+    </>
+  );
+}
+
+export function CliInstall() {
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  return (
+    <div className="toggle-row">
+      <span>
+        <span className="toggle-label">Command-line tool</span>
+        <span className="hint">
+          {message ? message.text : "Adds the agentry command (status, doctor, config, hooks) to your terminal."}
+        </span>
+      </span>
+      <button
+        className="btn"
+        onClick={() =>
+          installCli().then(
+            (text) => setMessage({ text, error: false }),
+            (e) => setMessage({ text: String(e), error: true }),
+          )
+        }
+      >
+        Install
+      </button>
+    </div>
+  );
+}
+
+function Updates() {
+  const [message, setMessage] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const sub = listen<string>("agentry://update-installed", () => setReady(true));
+    return () => {
+      sub.then((off) => off());
+    };
+  }, []);
+  return (
+    <>
+      <div className="actions">
+        <button
+          className="btn"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            checkUpdates()
+              .then(setMessage, (e) => setMessage(String(e)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "Checking…" : "Check for updates"}
+        </button>
+        {ready && (
+          <button className="btn btn-primary" onClick={restartApp}>
+            Restart to update
+          </button>
+        )}
+      </div>
+      {message && <p className="hint">{message}</p>}
+    </>
+  );
+}
+
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="settings-section">
       <h2>{title}</h2>
@@ -267,7 +441,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Toggle(props: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Toggle(props: { label: string; hint?: string; checked: boolean; onChange: (v: boolean) => void }) {
   const id = useId();
   return (
     <div className="toggle-row">
@@ -287,7 +461,7 @@ function Toggle(props: { label: string; hint?: string; checked: boolean; onChang
   );
 }
 
-function Integration() {
+export function Integration() {
   const [status, setStatus] = useState<HooksStatus | null>(null);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const refresh = () => hooksStatus().then(setStatus, (e) => setMessage({ text: String(e), error: true }));

@@ -78,6 +78,7 @@ function PermissionBody({ request, send, busy, t }: { request: Pending; send: Se
           <div className="actions">
             <button className="btn btn-primary" disabled={busy} onClick={() => send({ action: "allow" })}>
               {t.allow}
+              <span className="kbd" aria-hidden="true">⌘↵</span>
             </button>
             <button className="btn" disabled={busy} onClick={() => setDenying(true)}>
               {t.deny}
