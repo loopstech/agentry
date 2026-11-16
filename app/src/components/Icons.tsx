@@ -35,3 +35,17 @@ export const Check = () => (
     <path d="M5 12l5 5 9-10" />
   </svg>
 );
+
+export const Sound = () => (
+  <svg {...base}>
+    <path d="M11 5L6 9H3v6h3l5 4V5z" />
+    <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+  </svg>
+);
+
+export const Muted = () => (
+  <svg {...base}>
+    <path d="M11 5L6 9H3v6h3l5 4V5z" />
+    <path d="M16 9l5 5M21 9l-5 5" />
+  </svg>
+);

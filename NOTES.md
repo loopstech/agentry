@@ -30,9 +30,25 @@ These come from real `claude -p` sessions with Agentry's hooks installed. Payloa
   - The model can move tasks backwards (in_progress → pending → in_progress), so the store tracks each task's state rather than counting events.
 - **Task tools in `-p` mode.** `TaskCreate`/`TaskUpdate` were only offered when `TodoWrite` was in `--allowedTools`; without it the model reported the tools as unavailable. This only matters for scripted test runs.
 - **Not yet observed:**
-  - `Notification` and `StopFailure`, which need interactive sessions or errors;
-  - `PostToolUseFailure`;
-  - `AskUserQuestion` through PreToolUse, which needs an interactive session.
+  - `Notification` and `StopFailure`;
+  - `PostToolUseFailure`.
+
+## Approvals and questions, verified in Phase 3 (Claude Code 2.1.325)
+
+All of these were checked against real sessions. Interactive sessions were driven in tmux, with real mouse clicks on the widget's buttons on a virtual display.
+
+- **The terminal is not frozen.** In interactive sessions Claude Code shows its own "Do you want to proceed?" dialog **while** the `PermissionRequest` hook is still waiting.
+  - Answering in the widget closes the terminal dialog; Claude Code logs "Allowed by PermissionRequest hook".
+  - Answering in the terminal makes Claude Code abandon the hook. The server notices the dropped connection and clears the card at once.
+  - So PLAN.md §6's "terminal is frozen" trade-off doesn't apply to interactive sessions. Only `claude -p` really waits on the widget.
+- **Allow** runs the tool.
+- **Deny with a note:** the note reaches Claude as the denial message, and Claude follows it. For example, it used Write instead of a denied `touch`, and it kept a file the user said they needed.
+- **Always allow:** sending back `permission_suggestions` as `updatedPermissions` makes Claude Code save the rule. It wrote `Bash(python3 -c 'print\(6*7\)')` into `.claude/settings.local.json`, and the repeat command raised no `PermissionRequest`.
+  - Suggestions aren't always rules. For `touch` they were `addDirectories` plus `setMode: acceptEdits` for the session, and the button label describes exactly what will be applied.
+- **Answering questions:** `PreToolUse` on `AskUserQuestion`, returning `allow` with `updatedInput` = the original questions plus `answers`, works as documented. Claude Code shows "User answered Claude's questions: · Which fruit do you want? → Cherry" and carries on. The deny-with-answer fallback isn't needed.
+- **`AskUserQuestion` in `-p` mode:** the tool isn't offered at all in non-interactive runs.
+- **Unnamed internal agents:** after each turn, interactive Claude Code fires `SubagentStop` with an **empty** `agent_type` and no matching `SubagentStart`. These are ignored; only named subagents become helpers.
+- **Hook killed:** when Claude Code kills a waiting hook (e.g. the user answers in the terminal or interrupts), axum drops the request handler, and a guard hands the request back and clears the card.
 
 ## Decisions and deviations in Phase 1
 
@@ -55,3 +71,12 @@ These come from real `claude -p` sessions with Agentry's hooks installed. Payloa
 - **Full-screen apps.** `visibleOnAllWorkspaces` covers Spaces. Showing over full-screen apps needs an extra macOS window setting; that's planned for Phase 6.
 - **First run of a new binary on macOS** takes a few hundred ms, because macOS scans a freshly built, unsigned binary the first time it runs. CI caught this in Phase 1, and the timing tests now warm the binary up first. Signed and notarised builds (Phase 6) should be checked for this too.
 - **Not done yet:** backfilling sessions that were already running when the app started. This moves to Phase 4, alongside transcript reading.
+
+## Decisions and deviations in Phase 3
+
+- **Settings** live in `~/.agentry/config.json`. The server re-reads them on every request, so changes apply immediately. They can be edited with `agentry config` until the Phase 5 Settings window exists.
+- **Mute is "quiet mode".** It will also silence sounds in Phase 5, and every prompt goes straight to the terminal.
+- **The panel opens by itself** when a request arrives (`approvals.autoOpen`, default on). It doesn't take keyboard focus until you click it.
+- **Wording.** The countdown reads "widget hands over in 0:48", and the card says "You can also answer in the terminal", which matches what actually happens.
+- **`POST /requests/{id}`** answers a request exactly as the buttons do. Tests and scripts use it; it requires the token like every other route.
+- **Not done:** keyboard shortcuts for Allow and Deny (⌘↵ / ⌘⌫). They need a global shortcut, so they move to Phase 6.

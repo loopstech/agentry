@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, Instant};
 
+use agentry_core::config::Config;
 use agentry_core::settings::{self, HOOKS};
 use agentry_core::{client, paths, HOOK_BIN_NAME, VERSION};
 use anyhow::{anyhow, Context, Result};
@@ -32,8 +33,21 @@ enum Cmd {
     Status,
     /// Check hooks, the app and Claude Code, and explain any problems.
     Doctor,
+    /// Show or change settings (approvals, quiet mode).
+    Config {
+        #[command(subcommand)]
+        action: Option<ConfigCmd>,
+    },
     /// Print the Agentry version.
     Version,
+}
+
+#[derive(Subcommand)]
+enum ConfigCmd {
+    /// Show one setting, or all of them.
+    Get { key: Option<String> },
+    /// Change a setting, e.g. `agentry config set approvals.timeout 120`.
+    Set { key: String, value: String },
 }
 
 #[derive(Subcommand)]
@@ -86,6 +100,7 @@ fn main() -> ExitCode {
         } => uninstall(&scope),
         Cmd::Status => status(),
         Cmd::Doctor => doctor(),
+        Cmd::Config { action } => config(action),
         Cmd::Version => {
             println!("agentry {VERSION}");
             Ok(true)
@@ -99,6 +114,33 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn config(action: Option<ConfigCmd>) -> Result<bool> {
+    let home = paths::agentry_home();
+    let mut cfg = Config::load(&home);
+    match action {
+        None | Some(ConfigCmd::Get { key: None }) => {
+            for (key, help) in Config::KEYS {
+                println!("{key:<26} {:<14} {help}", cfg.get(key).unwrap_or_default());
+            }
+            println!("\nFile: {}", Config::file(&home).display());
+        }
+        Some(ConfigCmd::Get { key: Some(key) }) => match cfg.get(&key) {
+            Some(v) => println!("{v}"),
+            None => {
+                return Err(anyhow!(
+                    "unknown setting {key:?}; run `agentry config` to list them"
+                ))
+            }
+        },
+        Some(ConfigCmd::Set { key, value }) => {
+            cfg.set(&key, &value).map_err(|e| anyhow!(e))?;
+            cfg.save(&home).context("saving settings")?;
+            println!("{key} = {}", cfg.get(&key).unwrap_or_default());
+        }
+    }
+    Ok(true)
 }
 
 /// The agentry-hook program shipped next to this command.

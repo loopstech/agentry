@@ -196,7 +196,7 @@ Settings → Approvals:
 | Sound when something needs you | On / off, plus volume | On |
 
 - **Countdown.** A waiting card shows a countdown ("back to terminal in 0:48"). When it reaches 0 the hook returns with no output, and the terminal shows its prompt.
-- **The terminal is frozen meanwhile.** While the widget is waiting for an answer, the terminal can't show its own prompt. This trade-off is why the timeout is short by default, and the settings screen explains it.
+- **Both can answer (verified in Phase 3).** In interactive sessions Claude Code shows its own terminal prompt while the hook waits. Whichever answers first wins: answering in the widget closes the terminal dialog, and answering in the terminal abandons the hook, which clears the widget card. Only non-interactive `claude -p` runs actually wait on the widget. The timeout just decides when the widget stops offering the request.
 - **Muted or closed widget.** If the user has muted Agentry, closed it, or (in "only while visible" mode) collapsed it, blocking requests go straight back to the terminal with no wait.
 
 ---
@@ -382,7 +382,7 @@ The developer can build and run unit and integration tests in a cloud Linux cont
 - **Hook API drift.** Keep all payload parsing in `agentry-core`, set a minimum supported Claude Code version, and run `agentry doctor` checks.
 - **Editor extensions.** Hooks fire there too, but there's no terminal environment, so jump-to-window only reaches the project window. Confirm in Phase 4.
 - **Several sessions in one VS Code window** can't be told apart for focusing. That's acceptable.
-- **The terminal freezes during a widget wait.** This is inherent to blocking hooks, and is mitigated by the timeout and policy (§6).
+- ~~The terminal freezes during a widget wait.~~ It doesn't. Phase 3 showed that interactive Claude Code prompts in the terminal at the same time (§6).
 - **Open items for the owner:**
   - the domain for `install.sh` and docs;
   - the Homebrew tap repo name;

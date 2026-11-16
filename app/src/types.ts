@@ -25,6 +25,52 @@ export interface Helper {
   endedAt: number | null;
 }
 
+export interface QuestionOption {
+  label: string;
+  description: string | null;
+}
+
+export interface Question {
+  question: string;
+  header: string | null;
+  options: QuestionOption[];
+  multiSelect: boolean;
+}
+
+/** An approval or question waiting in the widget. */
+export interface Pending {
+  id: string;
+  kind: "permission" | "question";
+  toolName: string;
+  summary: string;
+  detail: string | null;
+  detailLabel: string | null;
+  agentType: string | null;
+  questions: Question[];
+  alwaysAllowLabel: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+}
+
+export type UiResponse =
+  | { action: "allow" }
+  | { action: "always_allow" }
+  | { action: "deny"; note?: string; stop?: boolean }
+  | { action: "terminal" }
+  | { action: "answer"; answers: Record<string, string> };
+
+export interface Config {
+  approvals: {
+    mode: "widget_first" | "terminal_only" | "widget_when_visible";
+    timeoutSecs: number | null;
+    tools: string[] | null;
+    alwaysAllow: boolean;
+    answerQuestions: boolean;
+    autoOpen: boolean;
+  };
+  muted: boolean;
+}
+
 export interface Session {
   id: string;
   cwd: string;
@@ -46,6 +92,7 @@ export interface Session {
   endedAt: number | null;
   needsSince: number | null;
   pinned: boolean;
+  pending: Pending[];
 }
 
 export const needsUser = (s: Session) =>

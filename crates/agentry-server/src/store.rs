@@ -97,6 +97,68 @@ pub struct Helper {
     pub ended_at: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PendingKind {
+    Permission,
+    Question,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionOption {
+    pub label: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Question {
+    pub question: String,
+    pub header: Option<String>,
+    pub options: Vec<QuestionOption>,
+    pub multi_select: bool,
+}
+
+/// An approval or question waiting for the user in the widget.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pending {
+    pub id: String,
+    pub kind: PendingKind,
+    pub tool_name: String,
+    /// One line, e.g. "Wants to run: pnpm i".
+    pub summary: String,
+    /// What to show in the code box: a command, a file excerpt, a URL…
+    pub detail: Option<String>,
+    /// Caption for the code box, e.g. "Bash" or a file path.
+    pub detail_label: Option<String>,
+    /// Set when a subagent asked.
+    pub agent_type: Option<String>,
+    pub questions: Vec<Question>,
+    /// e.g. "Always allow Bash(npm test:*) in this project". `None` when
+    /// Claude Code suggested no rule or the user turned the option off.
+    pub always_allow_label: Option<String>,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+
+    /// The tool's input, needed to answer questions. In memory only.
+    #[serde(skip)]
+    pub tool_input: Value,
+    /// Claude Code's `permission_suggestions`, sent back for "Always allow".
+    #[serde(skip)]
+    pub suggestions: Vec<Value>,
+}
+
+/// What happened to a pending request, for the card's next status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Allowed,
+    Denied,
+    Answered,
+    ToTerminal,
+}
+
 /// Where the session runs, for jumping back to it (Phase 4).
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -131,6 +193,8 @@ pub struct Session {
     /// When the session started waiting on the user.
     pub needs_since: Option<u64>,
     pub pinned: bool,
+    /// Requests waiting for the user in the widget, oldest first.
+    pub pending: Vec<Pending>,
 
     /// Last thing the main agent did, e.g. "Reading server.ts".
     #[serde(skip)]
@@ -163,6 +227,7 @@ impl Session {
             ended_at: None,
             needs_since: None,
             pinned: false,
+            pending: Vec::new(),
             activity: None,
             note: Some("Ready".into()),
         }
@@ -218,6 +283,18 @@ impl Session {
         }
     }
 
+    /// While anything is pending in the widget, that's what the card shows.
+    fn sync_pending(&mut self, now: u64) {
+        if let Some(first) = self.pending.first() {
+            let status = match first.kind {
+                PendingKind::Permission => Status::NeedsPermission,
+                PendingKind::Question => Status::NeedsAnswer,
+            };
+            let note = Some(first.summary.clone());
+            self.set_status(status, note, now);
+        }
+    }
+
     /// Recompute the derived fields shown on the card.
     fn refresh(&mut self) {
         let total = self.tasks.len();
@@ -256,6 +333,9 @@ pub struct Store {
     /// Sessions the user dismissed; they come back when the user prompts again.
     dismissed: HashSet<String>,
     next_avatar: u32,
+    /// Pending requests dropped because their session moved on; the server
+    /// releases their waiting hooks.
+    cancelled: Vec<String>,
 }
 
 impl Store {
@@ -311,6 +391,17 @@ impl Store {
         merge_terminal(&mut s.terminal, envelope);
 
         let agent_id = str_field(p, "agent_id");
+
+        // The session moved on, so anything still pending was answered or
+        // abandoned elsewhere (e.g. the user interrupted Claude).
+        let moved_on = match event {
+            "Stop" => agent_id.is_none(),
+            "StopFailure" | "SessionEnd" | "UserPromptSubmit" => true,
+            _ => false,
+        };
+        if moved_on && !s.pending.is_empty() {
+            self.cancelled.extend(s.pending.drain(..).map(|r| r.id));
+        }
         match event {
             "SessionStart" => {
                 if str_field(p, "source") == Some("clear") {
@@ -372,10 +463,12 @@ impl Store {
                 let input = p.get("tool_input").unwrap_or(&Value::Null);
                 match agent_id {
                     Some(aid) => {
-                        let summary = describe_tool(tool, input);
-                        let helper = helper_entry(s, aid, str_field(p, "agent_type"), now);
-                        if let Some(summary) = summary {
-                            helper.subtitle = summary;
+                        if let Some(kind) = named_agent(p) {
+                            let summary = describe_tool(tool, input);
+                            let helper = helper_entry(s, aid, Some(kind), now);
+                            if let Some(summary) = summary {
+                                helper.subtitle = summary;
+                            }
                         }
                     }
                     None => {
@@ -403,17 +496,18 @@ impl Store {
             }
 
             "SubagentStart" => {
-                if let Some(aid) = agent_id {
-                    let kind = helper_entry(s, aid, str_field(p, "agent_type"), now)
-                        .agent_type
-                        .clone();
+                // Interactive Claude Code also runs unnamed internal agents;
+                // only named subagents become helpers.
+                if let (Some(aid), Some(kind)) = (agent_id, named_agent(p)) {
+                    helper_entry(s, aid, Some(kind), now);
                     s.activity = Some(format!("Working with {kind}"));
                 }
             }
 
             "SubagentStop" => {
-                if let Some(aid) = agent_id {
-                    let h = helper_entry(s, aid, str_field(p, "agent_type"), now);
+                if let Some(h) =
+                    agent_id.and_then(|aid| s.helpers.iter_mut().find(|h| h.agent_id == aid))
+                {
                     h.done = true;
                     h.ended_at = Some(now);
                     h.subtitle = "Done".into();
@@ -454,8 +548,65 @@ impl Store {
             _ => {}
         }
 
+        s.sync_pending(now);
         s.refresh();
         true
+    }
+
+    /// Show a request in the widget. Returns false if the session is unknown.
+    pub fn add_pending(&mut self, session_id: &str, pending: Pending, now: u64) -> bool {
+        let Some(s) = self.sessions.get_mut(session_id) else {
+            return false;
+        };
+        s.pending.push(pending);
+        s.updated_at = now;
+        s.sync_pending(now);
+        s.refresh();
+        true
+    }
+
+    /// The pending request with this id, if it's still waiting.
+    pub fn pending(&self, request_id: &str) -> Option<&Pending> {
+        self.sessions
+            .values()
+            .flat_map(|s| s.pending.iter())
+            .find(|r| r.id == request_id)
+    }
+
+    /// Remove a pending request once it's been answered or handed back, and
+    /// update its session's card. Returns the request.
+    pub fn resolve(&mut self, request_id: &str, outcome: Outcome, now: u64) -> Option<Pending> {
+        let s = self
+            .sessions
+            .values_mut()
+            .find(|s| s.pending.iter().any(|r| r.id == request_id))?;
+        let i = s.pending.iter().position(|r| r.id == request_id)?;
+        let req = s.pending.remove(i);
+        s.updated_at = now;
+        match outcome {
+            Outcome::ToTerminal => {
+                s.set_status(Status::NeedsTerminal, Some(req.summary.clone()), now)
+            }
+            other => {
+                s.set_status(Status::Working, None, now);
+                s.activity = Some(
+                    match other {
+                        Outcome::Allowed => "Approved — carrying on",
+                        Outcome::Denied => "Denied — Claude is adjusting",
+                        _ => "Got your answer — carrying on",
+                    }
+                    .into(),
+                );
+            }
+        }
+        s.sync_pending(now);
+        s.refresh();
+        Some(req)
+    }
+
+    /// Ids of pending requests dropped since the last call.
+    pub fn take_cancelled(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.cancelled)
     }
 
     /// Drop expired sessions and helpers. Returns whether anything changed.
@@ -499,7 +650,8 @@ impl Store {
 
     /// Remove a session from view until it's prompted again.
     pub fn dismiss(&mut self, id: &str) -> bool {
-        if self.sessions.remove(id).is_some() {
+        if let Some(s) = self.sessions.remove(id) {
+            self.cancelled.extend(s.pending.into_iter().map(|r| r.id));
             self.dismissed.insert(id.to_owned());
             true
         } else {
@@ -520,6 +672,13 @@ impl Store {
 
 fn str_field<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
     v.get(key)?.as_str()
+}
+
+/// The subagent's type, if it has a name.
+fn named_agent(p: &Value) -> Option<&str> {
+    str_field(p, "agent_type")
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
 }
 
 fn helper_entry<'a>(
@@ -648,6 +807,235 @@ pub fn describe_tool(tool: &str, input: &Value) -> Option<String> {
         t => format!("Using {t}"),
     };
     Some(truncate(&text, MAX_SUBTITLE))
+}
+
+impl Pending {
+    /// Build the widget's view of a blocking hook event.
+    pub fn from_payload(
+        payload: &Value,
+        id: String,
+        now: u64,
+        expires_at: Option<u64>,
+        offer_always_allow: bool,
+    ) -> Pending {
+        let tool = tool_name(payload).unwrap_or("").to_owned();
+        let input = payload.get("tool_input").cloned().unwrap_or(Value::Null);
+        let agent_type = str_field(payload, "agent_type").map(str::to_owned);
+        let is_question = event_name(payload) == Some("PreToolUse") && tool == "AskUserQuestion";
+
+        if is_question {
+            let questions = parse_questions(&input);
+            let summary = match questions.as_slice() {
+                [] => "Has a question for you".to_owned(),
+                [q] => truncate(&format!("Asks: {}", q.question), MAX_SUBTITLE),
+                qs => format!("Has {} questions for you", qs.len()),
+            };
+            return Pending {
+                id,
+                kind: PendingKind::Question,
+                tool_name: tool,
+                summary,
+                detail: None,
+                detail_label: None,
+                agent_type,
+                questions,
+                always_allow_label: None,
+                created_at: now,
+                expires_at,
+                tool_input: input,
+                suggestions: Vec::new(),
+            };
+        }
+
+        let suggestions: Vec<Value> = payload
+            .get("permission_suggestions")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let always_allow_label = if offer_always_allow {
+            always_allow_label(&suggestions)
+        } else {
+            None
+        };
+        let (detail_label, detail) = request_detail(&tool, &input);
+        Pending {
+            id,
+            kind: PendingKind::Permission,
+            summary: describe_request(&tool, &input),
+            tool_name: tool,
+            detail,
+            detail_label,
+            agent_type,
+            questions: Vec::new(),
+            always_allow_label,
+            created_at: now,
+            expires_at,
+            tool_input: input,
+            suggestions,
+        }
+    }
+}
+
+fn parse_questions(input: &Value) -> Vec<Question> {
+    let Some(qs) = input.get("questions").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    qs.iter()
+        .filter_map(|q| {
+            Some(Question {
+                question: str_field(q, "question")?.to_owned(),
+                header: str_field(q, "header").map(str::to_owned),
+                options: q
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|o| {
+                        Some(QuestionOption {
+                            label: str_field(o, "label")?.to_owned(),
+                            description: str_field(o, "description").map(str::to_owned),
+                        })
+                    })
+                    .collect(),
+                multi_select: q
+                    .get("multiSelect")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            })
+        })
+        .collect()
+}
+
+const MAX_DETAIL_CHARS: usize = 2000;
+const MAX_DETAIL_LINES: usize = 14;
+
+fn clip_lines(text: &str, max_lines: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out = lines
+        .iter()
+        .take(max_lines)
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n");
+    if lines.len() > max_lines {
+        out.push_str(&format!("\n… {} more lines", lines.len() - max_lines));
+    }
+    if out.chars().count() > MAX_DETAIL_CHARS {
+        out = out.chars().take(MAX_DETAIL_CHARS).collect::<String>() + "…";
+    }
+    out
+}
+
+/// (caption, body) for the request's code box.
+fn request_detail(tool: &str, input: &Value) -> (Option<String>, Option<String>) {
+    let path = str_field(input, "file_path").map(str::to_owned);
+    match tool {
+        "Bash" => (
+            Some("Bash".into()),
+            str_field(input, "command").map(|c| clip_lines(c.trim(), MAX_DETAIL_LINES)),
+        ),
+        "Write" => (
+            path,
+            str_field(input, "content").map(|c| clip_lines(c, MAX_DETAIL_LINES)),
+        ),
+        "Edit" => (path, edit_diff(input)),
+        "MultiEdit" => (
+            path,
+            input
+                .get("edits")
+                .and_then(Value::as_array)
+                .and_then(|e| e.first())
+                .and_then(edit_diff),
+        ),
+        "Read" | "NotebookEdit" => (
+            Some(tool.into()),
+            path.or_else(|| str_field(input, "notebook_path").map(str::to_owned)),
+        ),
+        "WebFetch" => (
+            Some("WebFetch".into()),
+            str_field(input, "url").map(str::to_owned),
+        ),
+        _ if input.is_null() => (Some(tool.into()), None),
+        _ => (
+            Some(tool.into()),
+            serde_json::to_string_pretty(input)
+                .ok()
+                .map(|j| clip_lines(&j, MAX_DETAIL_LINES)),
+        ),
+    }
+}
+
+fn edit_diff(edit: &Value) -> Option<String> {
+    let old = str_field(edit, "old_string")?;
+    let new = str_field(edit, "new_string").unwrap_or("");
+    let half = MAX_DETAIL_LINES / 2;
+    let minus: Vec<String> = old.lines().take(half).map(|l| format!("- {l}")).collect();
+    let plus: Vec<String> = new.lines().take(half).map(|l| format!("+ {l}")).collect();
+    Some(clip_lines(
+        &[minus, plus].concat().join("\n"),
+        MAX_DETAIL_LINES,
+    ))
+}
+
+/// Describe Claude Code's suggested permission updates as one button label.
+pub fn always_allow_label(suggestions: &[Value]) -> Option<String> {
+    let mut what = Vec::new();
+    let mut place = None;
+    for s in suggestions {
+        match str_field(s, "type") {
+            Some("addRules") if str_field(s, "behavior").unwrap_or("allow") == "allow" => {
+                for r in s
+                    .get("rules")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let tool = str_field(r, "toolName").unwrap_or("this tool");
+                    what.push(
+                        match str_field(r, "ruleContent").filter(|c| !c.is_empty()) {
+                            Some(c) => format!("{tool}({})", truncate(c, 40)),
+                            None => tool.to_owned(),
+                        },
+                    );
+                }
+            }
+            Some("addDirectories") => {
+                let dirs: Vec<&str> = s
+                    .get("directories")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(basename)
+                    .collect();
+                if !dirs.is_empty() {
+                    what.push(format!("access to {}", dirs.join(", ")));
+                }
+            }
+            Some("setMode") => match str_field(s, "mode") {
+                Some("acceptEdits") => what.push("all edits".into()),
+                Some(m) => what.push(format!("{m} mode")),
+                None => {}
+            },
+            _ => continue,
+        }
+        place = place.or_else(|| {
+            str_field(s, "destination").map(|d| match d {
+                "localSettings" | "projectSettings" => "in this project",
+                "userSettings" => "everywhere",
+                _ => "for this session",
+            })
+        });
+    }
+    if what.is_empty() {
+        return None;
+    }
+    let mut label = format!("Always allow {}", what.join(", "));
+    if let Some(p) = place {
+        label.push(' ');
+        label.push_str(p);
+    }
+    Some(truncate(&label, 80))
 }
 
 /// What a permission request is for, e.g. "Wants to run: pnpm add -D x".
@@ -1060,6 +1448,32 @@ mod tests {
             })
         );
         assert_eq!(a.subtitle, "Fixing the bug");
+    }
+
+    #[test]
+    fn unnamed_internal_agents_are_not_helpers() {
+        let mut s = Store::new();
+        ev(
+            &mut s,
+            1,
+            json!({"hook_event_name": "UserPromptSubmit", "session_id": "a", "cwd": "/w/a", "prompt": "x"}),
+        );
+        ev(
+            &mut s,
+            2,
+            json!({"hook_event_name": "SubagentStop", "session_id": "a", "agent_id": "z", "agent_type": ""}),
+        );
+        ev(
+            &mut s,
+            3,
+            json!({"hook_event_name": "SubagentStart", "session_id": "a", "agent_id": "y", "agent_type": ""}),
+        );
+        ev(
+            &mut s,
+            4,
+            json!({"hook_event_name": "PostToolUse", "session_id": "a", "agent_id": "y", "agent_type": "", "tool_name": "Read", "tool_input": {}}),
+        );
+        assert!(s.snapshot()[0].helpers.is_empty());
     }
 
     #[test]

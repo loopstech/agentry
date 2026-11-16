@@ -2,7 +2,7 @@
 
 A small always-on-top macOS widget that shows every running Claude Code session. You can approve permissions and answer Claude's questions from it, and jump back to the session's window.
 
-> **Status: Phase 2 (read-only widget, Mono theme).** The island shows every session live: title, current step, task progress, nested subagents, and which sessions need you. Approving and answering from the widget comes in Phase 3, and jumping to the session's window in Phase 4. See [PLAN.md](PLAN.md).
+> **Status: Phase 3 (approvals and questions).** The island shows every session live. You can also allow or deny permission prompts (with a note to Claude, or "Always allow"), and answer Claude's questions, without going back to the terminal. Jumping to the session's window comes in Phase 4. See [PLAN.md](PLAN.md).
 
 ## How it works
 
@@ -42,6 +42,34 @@ cd Agentry
 
 A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it.
 
+### Phase 3 checks
+
+1. **Allow.** Ask Claude to run a command you haven't allowed, e.g. *"run: date > stamp.txt"*.
+   - The panel opens with the command and **Allow / Deny… / Use terminal**.
+   - Claude Code shows its own prompt in the terminal at the same time; either one can answer.
+   - Click **Allow**: the terminal prompt closes and the command runs.
+2. **Deny with a note.** Ask for something like *"run: rm stamp.txt"*.
+   - Click **Deny…**, type *"keep it, I need it"*, and press Enter.
+   - Claude should acknowledge your note and not delete the file.
+3. **Always allow.** When the card offers it (e.g. "Always allow Bash(npm test:*) in this project"), click it.
+   - The rule is saved to the project's `.claude/settings.local.json`.
+   - Claude doesn't ask about that command again.
+4. **Questions.** Ask *"use AskUserQuestion to ask me which fruit I want: Apple, Banana or Cherry"*.
+   - Pick one in the widget and click **Send**.
+   - The terminal shows "User answered Claude's questions: … → Cherry" and Claude carries on.
+5. **Timeout and quiet mode.**
+   - If you ignore a card, it hands over to the terminal after 90 s.
+   - The speaker button in the panel header turns on quiet mode, which sends every prompt straight to the terminal.
+
+Settings (until the Settings window in Phase 5):
+
+```sh
+./target/release/agentry config                          # list everything
+./target/release/agentry config set approvals.timeout 120
+./target/release/agentry config set approvals.mode widget_when_visible
+./target/release/agentry config set approvals.tools Bash,Write,Edit
+```
+
 ### Phase 2 checks
 
 1. **Live progress.** In a `claude` session, ask: *"make a 5-step todo list and work through it slowly"*.
@@ -54,7 +82,7 @@ A small black pill appears just under the menu bar. Click it to open the panel. 
 3. **Needs you.** Trigger a permission prompt, e.g. ask Claude to run a command you haven't allowed.
    - The card turns orange and jumps to the top, showing what Claude wants to run and how long it's been waiting.
    - The pill says "1 needs you" and pulses.
-   - Answer in the terminal (answering from the widget is Phase 3) and the card goes back to working.
+   - Answer in the widget or the terminal, and the card goes back to working.
 4. **Housekeeping.** ✕ hides a session until you prompt it again. `./target/release/agentry status` lists the same sessions in the terminal.
 
 These need a real Mac, so please check and tell me what you see:
@@ -78,6 +106,7 @@ These need a real Mac, so please check and tell me what you see:
 agentry hooks install [--project [DIR]] [--hook-path PATH]
 agentry hooks uninstall [--project [DIR]]
 agentry status      # lists live sessions
+agentry config [get KEY | set KEY VALUE]
 agentry doctor
 agentry version
 ```

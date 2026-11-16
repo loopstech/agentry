@@ -3,6 +3,7 @@ import { needsUser, type Session } from "../types";
 import { elapsed } from "../format";
 import { Check, Close } from "./Icons";
 import { dismissSession } from "../useSessions";
+import { RequestCard } from "./RequestCard";
 
 interface Props {
   session: Session;
@@ -14,6 +15,7 @@ export function SessionRow({ session: s, theme, now }: Props) {
   const { Avatar, Progress } = theme;
   const needs = needsUser(s);
   const helpers = s.helpers;
+  const request = s.pending[0];
 
   return (
     <li className={`row row-${s.status}${needs ? " row-needs" : ""}`}>
@@ -27,7 +29,7 @@ export function SessionRow({ session: s, theme, now }: Props) {
           <div className={`row-subtitle${needs ? " is-needs" : s.status === "error" ? " is-error" : ""}`}>
             {s.subtitle}
           </div>
-          {needs && s.needsSince && (
+          {needs && !request && s.needsSince && (
             <div className="row-hint">
               {theme.strings.waitingInTerminal} · {elapsed(now - s.needsSince)}
             </div>
@@ -47,6 +49,13 @@ export function SessionRow({ session: s, theme, now }: Props) {
           <Close />
         </button>
       </div>
+
+      {request && (
+        <div className="row-indent">
+          <RequestCard key={request.id} request={request} now={now} />
+          {s.pending.length > 1 && <div className="request-more">+{s.pending.length - 1} more waiting</div>}
+        </div>
+      )}
 
       {s.progress && s.progress.total > 0 && (
         <div className="row-indent">

@@ -7,9 +7,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Theme } from "../themes/types";
 import { countSessions, needsUser } from "../types";
 import { plural } from "../format";
-import { useNow, useSessions } from "../useSessions";
+import { setPanelOpen, useConfig, useNow, useRequestArrivals, useSessions } from "../useSessions";
 import { SessionRow } from "./SessionRow";
-import { Alert, ChevronUp } from "./Icons";
+import { Alert, ChevronUp, Muted, Sound } from "./Icons";
 
 /** Transparent margin around the content, so CSS shadows aren't clipped. */
 const FRAME = 14;
@@ -25,6 +25,20 @@ export function Island({ theme }: { theme: Theme }) {
   const counts = countSessions(sessions);
   const now = useNow(sessions.some(needsUser));
   const pulse = usePulse(counts.needs);
+  const { config, setMuted } = useConfig();
+  const muted = config?.muted ?? false;
+
+  // Open the panel when a request arrives (the user can turn this off).
+  useRequestArrivals(
+    useCallback((r: { openPanel: boolean }) => {
+      if (r.openPanel) setExpanded(true);
+    }, []),
+  );
+
+  // The server uses this for "answer in the widget only while it's open".
+  useEffect(() => {
+    setPanelOpen(expanded);
+  }, [expanded]);
 
   // Fit the window to the content.
   useLayoutEffect(() => {
@@ -81,6 +95,11 @@ export function Island({ theme }: { theme: Theme }) {
                 <Alert />
               </span>
             )}
+            {muted && (
+              <span className="pill-muted" title="Quiet mode: prompts go to the terminal">
+                <Muted />
+              </span>
+            )}
           </button>
         ) : (
           <section
@@ -91,6 +110,15 @@ export function Island({ theme }: { theme: Theme }) {
             <header className="panel-header" {...drag} onClick={undefined}>
               <span className="panel-title">Agentry</span>
               <span className="panel-count">{plural(sessions.length, "session", "sessions")}</span>
+              <button
+                className={`icon-button icon-button-filled${muted ? " is-on" : ""}`}
+                aria-pressed={muted}
+                aria-label={muted ? "Quiet mode is on: prompts go to the terminal. Turn off" : "Turn on quiet mode"}
+                title={muted ? "Quiet mode on — prompts go to the terminal" : "Quiet mode"}
+                onClick={() => setMuted(!muted)}
+              >
+                {muted ? <Muted /> : <Sound />}
+              </button>
               <button
                 className="icon-button icon-button-filled"
                 aria-label="Collapse to pill"

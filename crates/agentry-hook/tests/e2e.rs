@@ -84,6 +84,7 @@ async fn events_reach_the_server_with_context() {
     let dir = tempfile::tempdir().unwrap();
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
@@ -132,10 +133,16 @@ async fn events_reach_the_server_with_context() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn blocking_requests_fall_back_to_terminal_in_phase_1() {
+async fn blocking_requests_go_to_terminal_in_terminal_only_mode() {
     let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("config.json"),
+        r#"{"approvals":{"mode":"terminal_only"}}"#,
+    )
+    .unwrap();
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
@@ -169,6 +176,7 @@ async fn fails_open_when_app_is_not_running() {
     // Started then stopped: shutdown removes the port file.
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
@@ -192,6 +200,7 @@ async fn rejects_wrong_token_and_bad_input_silently() {
     let dir = tempfile::tempdir().unwrap();
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
@@ -242,11 +251,13 @@ async fn second_instance_refuses_to_start() {
     let dir = tempfile::tempdir().unwrap();
     let first = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
     let second = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await;
     assert!(second.is_err());
@@ -254,6 +265,7 @@ async fn second_instance_refuses_to_start() {
     // Once the first is gone, a new one can start.
     let third = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();
@@ -265,6 +277,7 @@ async fn hook_is_fast() {
     let dir = tempfile::tempdir().unwrap();
     let server = Server::start(ServerOptions {
         home: dir.path().into(),
+        request_timeout: None,
     })
     .await
     .unwrap();

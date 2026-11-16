@@ -5,6 +5,7 @@
 //! crate and must start in a few milliseconds.
 
 pub mod client;
+pub mod config;
 pub mod paths;
 pub mod protocol;
 pub mod settings;
@@ -18,3 +19,10 @@ pub const TOKEN_HEADER: &str = "X-Agentry-Token";
 /// File name of the hook executable. Install and uninstall recognise Agentry's
 /// own entries in `settings.json` by this name.
 pub const HOOK_BIN_NAME: &str = "agentry-hook";
+
+/// A random identifier, 16 hex characters.
+pub fn random_id() -> String {
+    let mut bytes = [0u8; 8];
+    let _ = getrandom::fill(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
