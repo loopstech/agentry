@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/agentry-core",
+  "crates/agentry-hook",
+  "crates/agentry-server",
+  "crates/agentry-cli",
+  "app/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/loopstech/Agentry"
+
+[workspace.dependencies]
+agentry-core = { path = "crates/agentry-core" }
+agentry-server = { path = "crates/agentry-server" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+getrandom = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
+axum = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "s"

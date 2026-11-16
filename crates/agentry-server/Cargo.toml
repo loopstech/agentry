@@ -1,0 +1,23 @@
+[package]
+name = "agentry-server"
+description = "Agentry's local HTTP server: receives hook events and holds approval requests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "agentry-devserver"
+path = "src/bin/agentry-devserver.rs"
+
+[dependencies]
+agentry-core.workspace = true
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
