@@ -33,18 +33,41 @@ fn run_hook(home: &Path, stdin: &str, extra_env: &[(&str, &str)]) -> (Output, Du
     (out, start.elapsed())
 }
 
+/// Run the hook binary once, untimed. macOS scans a freshly built binary the
+/// first time it runs (hundreds of milliseconds); that one-off cost isn't
+/// what the timing tests measure.
+fn warm_up() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let dir = tempfile::tempdir().unwrap();
+        run_hook(dir.path(), "{}", &[("AGENTRY_DISABLE", "1")]);
+    });
+}
+
 async fn hook(home: &Path, payload: serde_json::Value) -> (Output, Duration) {
+    tokio::task::spawn_blocking(warm_up).await.unwrap();
     let home = home.to_path_buf();
     tokio::task::spawn_blocking(move || run_hook(&home, &payload.to_string(), &[]))
         .await
         .unwrap()
 }
 
-async fn next_event(rx: &mut Receiver<ServerEvent>) -> ServerEvent {
-    tokio::time::timeout(Duration::from_secs(5), rx.recv())
-        .await
-        .expect("no event within 5s")
-        .unwrap()
+/// The next hook event, skipping session snapshots.
+async fn next_event(
+    rx: &mut Receiver<ServerEvent>,
+) -> (
+    agentry_core::protocol::EventSummary,
+    Box<agentry_core::protocol::Envelope>,
+) {
+    loop {
+        let ev = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("no event within 5s")
+            .unwrap();
+        if let ServerEvent::Hook { summary, envelope } = ev {
+            return (summary, envelope);
+        }
+    }
 }
 
 fn assert_silent_success(out: &Output) {
@@ -74,7 +97,7 @@ async fn events_reach_the_server_with_context() {
     .await;
     assert_silent_success(&out);
 
-    let ServerEvent::Hook { summary, envelope } = next_event(&mut rx).await;
+    let (summary, envelope) = next_event(&mut rx).await;
     assert_eq!(summary.event, "SessionStart");
     assert_eq!(summary.session_id.as_deref(), Some("sess-1"));
     assert!(!summary.blocking);
@@ -101,7 +124,7 @@ async fn events_reach_the_server_with_context() {
     )
     .await;
     assert_silent_success(&out);
-    let ServerEvent::Hook { summary, .. } = next_event(&mut rx).await;
+    let (summary, _) = next_event(&mut rx).await;
     assert_eq!(summary.agent_type.as_deref(), Some("Explore"));
     assert_eq!(summary.tool_name.as_deref(), Some("Read"));
 
@@ -126,7 +149,7 @@ async fn blocking_requests_fall_back_to_terminal_in_phase_1() {
     ] {
         let (out, _) = hook(dir.path(), payload).await;
         assert_silent_success(&out);
-        let ServerEvent::Hook { summary, .. } = next_event(&mut rx).await;
+        let (summary, _) = next_event(&mut rx).await;
         assert!(summary.blocking);
     }
     server.shutdown().await;

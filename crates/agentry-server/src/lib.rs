@@ -4,12 +4,16 @@
 //! `~/.agentry/port` and requires the token from `~/.agentry/token` on every
 //! request. The Tauri app and the headless dev server both run it.
 //!
-//! Phase 1: events are logged and broadcast; approval requests are answered
-//! straight away with "use the terminal". The approval broker comes in Phase 3.
+//! Hook events feed the session [`store`]; every change is broadcast as a
+//! fresh snapshot. Approval requests are still answered straight away with
+//! "use the terminal"; the approval broker comes in Phase 3.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+pub mod store;
 
 use agentry_core::protocol::{Decision, Envelope, EventSummary};
 use agentry_core::{client, paths, TOKEN_HEADER, VERSION};
@@ -23,6 +27,11 @@ use axum::{Json, Router};
 use serde_json::json;
 use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
+
+use crate::store::{Session, Store};
+
+/// How often expired sessions and helpers are cleared out.
+const TICK_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Hook payloads include tool input and output, which can be large (a Write
 /// of a big file). Generous, but bounded.
@@ -50,20 +59,68 @@ pub enum ServerEvent {
         summary: EventSummary,
         envelope: Box<Envelope>,
     },
+    /// The sessions changed; this is the full list in display order.
+    Sessions(Arc<Vec<Session>>),
+}
+
+/// Shared access to the sessions, for the UI's actions.
+#[derive(Clone)]
+pub struct Sessions {
+    store: Arc<Mutex<Store>>,
+    events: broadcast::Sender<ServerEvent>,
+}
+
+impl Sessions {
+    pub fn snapshot(&self) -> Vec<Session> {
+        self.store.lock().unwrap().snapshot()
+    }
+
+    /// Hide a session until it's prompted again.
+    pub fn dismiss(&self, id: &str) -> bool {
+        self.update(|s| s.dismiss(id))
+    }
+
+    pub fn set_pinned(&self, id: &str, pinned: bool) -> bool {
+        self.update(|s| s.set_pinned(id, pinned))
+    }
+
+    fn apply(&self, envelope: &Envelope) -> bool {
+        self.update(|s| s.apply(envelope, now_ms()))
+    }
+
+    fn tick(&self) -> bool {
+        self.update(|s| s.tick(now_ms()))
+    }
+
+    /// Run `f` on the store and broadcast a snapshot if it changed anything.
+    fn update(&self, f: impl FnOnce(&mut Store) -> bool) -> bool {
+        let snapshot = {
+            let mut store = self.store.lock().unwrap();
+            if !f(&mut store) {
+                return false;
+            }
+            store.snapshot()
+        };
+        let _ = self.events.send(ServerEvent::Sessions(Arc::new(snapshot)));
+        true
+    }
 }
 
 #[derive(Clone)]
 struct AppState {
     token: String,
     events: broadcast::Sender<ServerEvent>,
+    sessions: Sessions,
 }
 
 pub struct Server {
     pub port: u16,
     home: PathBuf,
     events: broadcast::Sender<ServerEvent>,
+    sessions: Sessions,
     shutdown: Option<oneshot::Sender<()>>,
     task: Option<JoinHandle<()>>,
+    ticker: Option<JoinHandle<()>>,
 }
 
 impl Server {
@@ -96,12 +153,18 @@ impl Server {
         let port = listener.local_addr()?.port();
 
         let (events, _) = broadcast::channel(1024);
+        let sessions = Sessions {
+            store: Arc::new(Mutex::new(Store::new())),
+            events: events.clone(),
+        };
         let state = AppState {
             token,
             events: events.clone(),
+            sessions: sessions.clone(),
         };
         let app = Router::new()
             .route("/health", get(health))
+            .route("/sessions", get(list_sessions))
             .route("/event", post(event))
             .route("/request", post(request))
             .layer(middleware::from_fn_with_state(state.clone(), require_token))
@@ -118,19 +181,36 @@ impl Server {
             }
         });
 
+        let ticker = tokio::spawn({
+            let sessions = sessions.clone();
+            async move {
+                let mut interval = tokio::time::interval(TICK_INTERVAL);
+                loop {
+                    interval.tick().await;
+                    sessions.tick();
+                }
+            }
+        });
+
         paths::write_port(&home, port).context("writing the port file")?;
         tracing::info!(port, home = %home.display(), "Agentry listening on 127.0.0.1");
         Ok(Server {
             port,
             home,
             events,
+            sessions,
             shutdown: Some(tx),
             task: Some(task),
+            ticker: Some(ticker),
         })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {
         self.events.subscribe()
+    }
+
+    pub fn sessions(&self) -> Sessions {
+        self.sessions.clone()
     }
 
     /// Stop serving and remove the port file so hooks fail fast.
@@ -142,6 +222,9 @@ impl Server {
     }
 
     fn stop(&mut self) {
+        if let Some(t) = self.ticker.take() {
+            t.abort();
+        }
         if let Some(tx) = self.shutdown.take() {
             let _ = tx.send(());
             paths::remove_port(&self.home, self.port);
@@ -182,6 +265,10 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+async fn list_sessions(State(state): State<AppState>) -> Json<Vec<Session>> {
+    Json(state.sessions.snapshot())
+}
+
 fn publish(state: &AppState, envelope: Envelope) -> EventSummary {
     let summary = EventSummary::from_payload(&envelope.payload, now_ms());
     tracing::info!(
@@ -202,6 +289,7 @@ fn publish(state: &AppState, envelope: Envelope) -> EventSummary {
             tracing::debug!(event = %summary.event, fields = %keys.join(","), "payload fields");
         }
     }
+    state.sessions.apply(&envelope);
     let _ = state.events.send(ServerEvent::Hook {
         summary: summary.clone(),
         envelope: Box::new(envelope),

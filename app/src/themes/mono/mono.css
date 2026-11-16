@@ -1,0 +1,90 @@
+/* Mono theme tokens and looks. Structure lives in components.css. */
+
+.theme-mono {
+  --font: "Geist Sans", -apple-system, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --accent: #ff7a45;
+  --on-accent: #000000;
+  --surface: #000000;
+  --surface-2: #141414;
+  --surface-3: #1f1f1f;
+  --line: #1f1f1f;
+  --text: #f5f5f5;
+  --muted: #a1a1a1; /* 8.6:1 on black */
+  --faint: #6e6e6e; /* decorative only */
+  --error: #ff6961;
+  --radius-pill: 20px;
+  --radius-panel: 28px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+/* Avatars: initials in circles. Filled with the accent when the session needs you. */
+.theme-mono .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2a2a2a;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.theme-mono .avatar-md {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.theme-mono .avatar-sm {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+  border: 2px solid var(--surface);
+}
+.theme-mono .avatar-needs {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.theme-mono .avatar-quiet {
+  color: var(--muted);
+}
+.theme-mono .avatar-error {
+  box-shadow: inset 0 0 0 2px var(--error);
+}
+.theme-mono .avatar-md.avatar-working {
+  animation: mono-breathe 2.4s ease-in-out infinite;
+}
+@keyframes mono-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 245, 245, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(245, 245, 245, 0);
+  }
+}
+
+/* Progress: a hairline. */
+.theme-mono .progress {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.theme-mono .progress-fill {
+  height: 100%;
+  background: var(--text);
+  transition: width 400ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-mono .avatar-md.avatar-working {
+    animation: none;
+  }
+  .theme-mono .progress-fill {
+    transition: none;
+  }
+}

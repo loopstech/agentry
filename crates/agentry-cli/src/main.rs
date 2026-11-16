@@ -189,16 +189,67 @@ fn app_health() -> Option<(u16, String)> {
 }
 
 fn status() -> Result<bool> {
-    match app_health() {
-        Some((port, version)) => {
-            println!("Agentry {version} is running on 127.0.0.1:{port}");
-            Ok(true)
-        }
-        None => {
-            println!("Agentry is not running. Hooks pass straight through to Claude Code.");
-            Ok(false)
+    let Some((port, version)) = app_health() else {
+        println!("Agentry is not running. Hooks pass straight through to Claude Code.");
+        return Ok(false);
+    };
+    println!("Agentry {version} is running on 127.0.0.1:{port}");
+    let sessions = fetch_sessions().unwrap_or_default();
+    if sessions.is_empty() {
+        println!("No Claude Code sessions right now.");
+        return Ok(true);
+    }
+    println!();
+    for s in &sessions {
+        let get = |k: &str| s.get(k).and_then(|v| v.as_str()).unwrap_or("");
+        let status = match get("status") {
+            "needs_permission" | "needs_answer" | "needs_terminal" => "NEEDS YOU",
+            "working" => "working",
+            "idle" => "ready",
+            "error" => "error",
+            "done" => "done",
+            other => other,
+        };
+        let progress = s
+            .get("progress")
+            .and_then(|p| {
+                Some(format!(
+                    " {}/{}",
+                    p.get("done")?.as_u64()?,
+                    p.get("total")?.as_u64()?
+                ))
+            })
+            .unwrap_or_default();
+        println!(
+            "  {status:<9}  {}  ({}){progress}",
+            get("title"),
+            get("project")
+        );
+        println!("             {}", get("subtitle"));
+        for h in s
+            .get("helpers")
+            .and_then(|h| h.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let hget = |k: &str| h.get(k).and_then(|v| v.as_str()).unwrap_or("");
+            println!("             └ {}: {}", hget("agentType"), hget("subtitle"));
         }
     }
+    Ok(true)
+}
+
+fn fetch_sessions() -> Option<Vec<serde_json::Value>> {
+    let (port, token) = paths::read_connection(&paths::agentry_home())?;
+    let r = client::request(
+        "GET",
+        port,
+        &token,
+        "/sessions",
+        None,
+        Duration::from_secs(1),
+    )?;
+    serde_json::from_str(&r.body).ok()
 }
 
 struct Report {

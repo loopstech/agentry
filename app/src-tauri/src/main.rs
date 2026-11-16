@@ -1,14 +1,14 @@
-//! The Agentry desktop app.
-//!
-//! Phase 1: runs the local server, logs every hook event to the console and
-//! shows them in a plain debug window. The widget UI arrives in Phase 2.
+//! The Agentry desktop app: runs the local server and shows the island widget.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod window;
 
 use std::sync::Mutex;
 
 use agentry_core::paths;
-use agentry_server::{init_logging, Server, ServerEvent, ServerOptions};
+use agentry_server::store::Session;
+use agentry_server::{init_logging, Server, ServerEvent, ServerOptions, Sessions};
 use serde::Serialize;
 use tauri::{Emitter, Manager, RunEvent};
 use tokio::sync::broadcast::error::RecvError;
@@ -17,9 +17,12 @@ use tokio::sync::broadcast::error::RecvError;
 struct AppStatus(Mutex<ServerInfo>);
 
 #[derive(Default, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ServerInfo {
     port: Option<u16>,
     error: Option<String>,
+    #[serde(skip)]
+    sessions: Option<Sessions>,
 }
 
 #[tauri::command]
@@ -27,16 +30,50 @@ fn server_info(status: tauri::State<'_, AppStatus>) -> ServerInfo {
     status.0.lock().unwrap().clone()
 }
 
+#[tauri::command]
+fn get_sessions(status: tauri::State<'_, AppStatus>) -> Vec<Session> {
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    sessions.map(|s| s.snapshot()).unwrap_or_default()
+}
+
+#[tauri::command]
+fn dismiss_session(status: tauri::State<'_, AppStatus>, id: String) -> bool {
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    sessions.is_some_and(|s| s.dismiss(&id))
+}
+
+#[tauri::command]
+fn pin_session(status: tauri::State<'_, AppStatus>, id: String, pinned: bool) -> bool {
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    sessions.is_some_and(|s| s.set_pinned(&id, pinned))
+}
+
 fn main() {
     init_logging();
 
     let app = tauri::Builder::default()
         .manage(AppStatus::default())
-        .invoke_handler(tauri::generate_handler![server_info])
+        .manage(window::Placement::default())
+        .invoke_handler(tauri::generate_handler![
+            server_info,
+            get_sessions,
+            dismiss_session,
+            pin_session,
+            window::set_panel_size,
+        ])
         .setup(|app| {
+            if let Some(main) = app.get_webview_window("main") {
+                window::place_initially(&main);
+                let _ = main.show();
+            }
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move { run_server(handle).await });
             Ok(())
+        })
+        .on_window_event(|win, event| {
+            if let tauri::WindowEvent::Moved(pos) = event {
+                window::on_moved(win, *pos);
+            }
         })
         .build(tauri::generate_context!())
         .expect("failed to build the Agentry app");
@@ -62,16 +99,25 @@ async fn run_server(handle: tauri::AppHandle) {
             return;
         }
     };
-    status.0.lock().unwrap().port = Some(server.port);
+    {
+        let mut info = status.0.lock().unwrap();
+        info.port = Some(server.port);
+        info.sessions = Some(server.sessions());
+    }
     let _ = handle.emit("agentry://server", status.0.lock().unwrap().clone());
 
     let mut events = server.subscribe();
     loop {
         match events.recv().await {
-            Ok(ServerEvent::Hook { summary, .. }) => {
-                let _ = handle.emit("agentry://event", &summary);
+            Ok(ServerEvent::Sessions(list)) => {
+                let _ = handle.emit("agentry://sessions", &*list);
             }
-            Err(RecvError::Lagged(n)) => tracing::warn!("UI fell behind; skipped {n} events"),
+            Ok(ServerEvent::Hook { .. }) => {}
+            Err(RecvError::Lagged(n)) => {
+                // Snapshots are complete, so catching up just means sending the latest.
+                tracing::warn!("UI fell behind by {n} updates; resending");
+                let _ = handle.emit("agentry://sessions", server.sessions().snapshot());
+            }
             Err(RecvError::Closed) => break,
         }
     }
