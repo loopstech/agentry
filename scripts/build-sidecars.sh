@@ -17,6 +17,11 @@ build() { cargo build --release --locked -p agentry-hook -p agentry-cli --target
 if [ "${1:-}" = "universal" ]; then
   for t in aarch64-apple-darwin x86_64-apple-darwin; do build "$t"; done
   for bin in agentry-hook agentry; do
+    # `tauri build --target universal-apple-darwin` compiles each arch
+    # separately, and each pass looks for its own triple's sidecar.
+    for t in aarch64-apple-darwin x86_64-apple-darwin; do
+      cp "target/$t/release/$bin" "$out/$bin-$t"
+    done
     lipo -create \
       "target/aarch64-apple-darwin/release/$bin" \
       "target/x86_64-apple-darwin/release/$bin" \
