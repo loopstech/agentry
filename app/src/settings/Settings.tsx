@@ -263,7 +263,7 @@ export function Settings() {
 
       <Section title="About">
         <p className="hint">
-          Agentry {pkg.version} · MIT licence · github.com/loopstech/Agentry
+          Agentry {pkg.version} · MIT licence · github.com/loopstech/agentry
         </p>
       </Section>
     </div>

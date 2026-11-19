@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install Agentry on macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/loopstech/Agentry/main/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/loopstech/agentry/main/scripts/install.sh | sh
 #
 # Downloads the latest release, checks its SHA-256, copies Agentry.app to
 # /Applications (or ~/Applications), links the `agentry` command, and offers
@@ -15,7 +15,7 @@
 #   AGENTRY_BIN_DIR=…        where to link `agentry` (default /usr/local/bin, else ~/.local/bin)
 set -eu
 
-REPO="loopstech/Agentry"
+REPO="loopstech/agentry"
 APP_NAME="Agentry.app"
 
 say() { printf '%s\n' "$*"; }
