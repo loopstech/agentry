@@ -158,6 +158,10 @@ export function Island() {
       if (document.activeElement instanceof HTMLInputElement) return;
       if (e.key === "Enter") {
         e.preventDefault();
+        if (!topPermission.detailComplete) {
+          notify("Too long to show in full; answer it in the terminal", true);
+          return;
+        }
         respondRequest(topPermission.id, { action: "allow" }).catch((err) => notify(String(err), true));
       } else if (e.key === "Backspace") {
         e.preventDefault();

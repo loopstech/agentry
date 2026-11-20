@@ -70,13 +70,30 @@ function PermissionBody({ request, send, busy, t }: { request: Pending; send: Se
         <figure className="code">
           {request.detailLabel && <figcaption className="code-label">{request.detailLabel}</figcaption>}
           <pre>{request.detail}</pre>
+          {lineCount(request.detail) > 9 && (
+            <div className="code-more">{lineCount(request.detail)} lines · scroll to read it all</div>
+          )}
         </figure>
+      )}
+      {request.detailHiddenChars && (
+        <div className="request-warning" role="alert">
+          This contains invisible or text-direction characters, shown as ⟨U+…⟩. Check it carefully.
+        </div>
+      )}
+      {!request.detailComplete && (
+        <div className="request-warning" role="alert">
+          Too long to show in full, so it can't be allowed here. Answer it in the terminal.
+        </div>
       )}
 
       {!denying ? (
         <>
           <div className="actions">
-            <button className="btn btn-primary" disabled={busy} onClick={() => send({ action: "allow" })}>
+            <button
+              className="btn btn-primary"
+              disabled={busy || !request.detailComplete}
+              onClick={() => send({ action: "allow" })}
+            >
               {t.allow}
               <span className="kbd" aria-hidden="true">⌘↵</span>
             </button>
@@ -91,7 +108,7 @@ function PermissionBody({ request, send, busy, t }: { request: Pending; send: Se
           {request.alwaysAllowLabel && (
             <button
               className="btn btn-ghost btn-block"
-              disabled={busy}
+              disabled={busy || !request.detailComplete}
               onClick={() => send({ action: "always_allow" })}
               title={request.alwaysAllowLabel}
             >
@@ -231,4 +248,8 @@ function QuestionBody({ request, send, busy, t }: { request: Pending; send: Send
       </div>
     </form>
   );
+}
+
+function lineCount(text: string): number {
+  return text.split("\n").length;
 }

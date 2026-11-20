@@ -1,0 +1,49 @@
+/* A soft "desktop" behind the island, so screenshots don't float on white.
+   Light themes get a light backdrop, dark ones a dark one. */
+
+html,
+body {
+  overflow: auto;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 15% 0%, #3b3f8f 0%, transparent 60%),
+    radial-gradient(900px 600px at 100% 100%, #7a3b6b 0%, transparent 55%),
+    #15172b;
+}
+
+body[data-theme="paper"] {
+  background:
+    radial-gradient(1200px 600px at 10% 0%, #f6d9b8 0%, transparent 60%),
+    radial-gradient(900px 600px at 100% 100%, #c9dcf2 0%, transparent 55%),
+    #efe9df;
+}
+
+body[data-theme="glass"] {
+  background:
+    radial-gradient(800px 500px at 20% 10%, #ff8fb1 0%, transparent 60%),
+    radial-gradient(900px 600px at 90% 80%, #6fb7ff 0%, transparent 55%),
+    radial-gradient(600px 400px at 60% 30%, #ffd36f 0%, transparent 60%),
+    #5b5fa8;
+}
+
+body[data-theme="terminal"] {
+  background:
+    radial-gradient(1000px 600px at 20% 0%, #12301f 0%, transparent 60%),
+    #070b09;
+}
+
+/* The island sits where it would under the menu bar. */
+body[data-view="island"] #stage {
+  padding: 36px 40px 48px;
+  display: flex;
+  justify-content: center;
+}
+
+body[data-view="settings"] #stage {
+  padding: 40px;
+}

@@ -47,6 +47,10 @@ export interface Pending {
   summary: string;
   detail: string | null;
   detailLabel: string | null;
+  /** False when the code box couldn't show everything; Allow is refused. */
+  detailComplete: boolean;
+  /** The input had invisible or text-direction characters (shown escaped). */
+  detailHiddenChars: boolean;
   agentType: string | null;
   questions: Question[];
   alwaysAllowLabel: string | null;

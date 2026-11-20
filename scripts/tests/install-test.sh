@@ -47,6 +47,14 @@ cat > "$fake/ditto" <<'S'
 cp -R "$1" "$2"
 S
 for t in open osascript; do printf '#!/bin/sh\nexit 0\n' > "$fake/$t"; done
+# codesign and spctl pass unless the "app" carries a BADSIG marker.
+for t in codesign spctl; do
+  cat > "$fake/$t" <<'S'
+#!/bin/sh
+for a; do last="$a"; done
+[ ! -e "$last/BADSIG" ]
+S
+done
 printf '#!/bin/sh\nexit 1\n' > "$fake/pgrep"
 chmod +x "$fake"/*
 
@@ -65,6 +73,15 @@ echo "== re-install over it, without hooks"
 : > "$work/cli.log"
 run AGENTRY_NO_HOOKS=1
 test ! -s "$work/cli.log"
+
+echo "== an app not signed by Agentry's team is refused, and the old copy kept"
+touch "$work/src/Agentry.app/BADSIG"
+tar -C "$work/src" -cf "$release/Agentry.dmg" Agentry.app
+(cd "$release" && sha256sum Agentry.dmg > SHA256SUMS)
+if run AGENTRY_YES=1 2> "$work/err"; then echo "expected failure"; exit 1; fi
+grep -q "isn't signed by Agentry's developer" "$work/err"
+test -x "$work/Applications/Agentry.app/Contents/MacOS/agentry"
+test ! -e "$work/Applications/Agentry.app/BADSIG"
 
 echo "== a tampered download is refused"
 echo "tampered" >> "$release/Agentry.dmg"

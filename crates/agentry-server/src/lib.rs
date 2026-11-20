@@ -132,6 +132,14 @@ pub fn decide(req: &Pending, response: &UiResponse) -> Result<(Decision, Outcome
         Some(n) => format!("{what} Their note: {n}"),
         None => what.to_owned(),
     };
+    // Never allow something the user couldn't see in full.
+    if !req.detail_complete && matches!(response, UiResponse::Allow | UiResponse::AlwaysAllow) {
+        return Err(
+            "This request is too long to show in full here, so it can't be allowed from Agentry. \
+             Answer it in the terminal."
+                .into(),
+        );
+    }
     match (req.kind, response) {
         (_, UiResponse::Terminal) => Ok((Decision::Terminal, Outcome::ToTerminal)),
         (PendingKind::Permission, UiResponse::Allow) => Ok((
@@ -728,4 +736,38 @@ pub fn init_logging() {
         .with_env_filter(filter)
         .with_target(false)
         .try_init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pending(content: String) -> Pending {
+        Pending::from_payload(
+            &json!({ "tool_name": "Write", "tool_input": { "file_path": "/w/f", "content": content } }),
+            "r".into(),
+            0,
+            None,
+            true,
+        )
+    }
+
+    #[test]
+    fn requests_too_long_to_show_cannot_be_allowed() {
+        let req = pending("x".repeat(200_000));
+        assert!(decide(&req, &UiResponse::Allow).is_err());
+        assert!(decide(&req, &UiResponse::AlwaysAllow).is_err());
+        // Denying or handing it to the terminal still works.
+        assert!(decide(&req, &UiResponse::Terminal).is_ok());
+        assert!(decide(
+            &req,
+            &UiResponse::Deny {
+                note: None,
+                stop: false
+            }
+        )
+        .is_ok());
+        // A normal request can be allowed.
+        assert!(decide(&pending("hi".into()), &UiResponse::Allow).is_ok());
+    }
 }

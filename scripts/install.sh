@@ -17,12 +17,15 @@ set -eu
 
 REPO="loopstech/agentry"
 APP_NAME="Agentry.app"
+# The Apple Developer team that signs Agentry. The checksum only proves the
+# download wasn't corrupted; this proves the app is ours and notarised.
+TEAM_ID="4BY64WBTK2"
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'agentry install: %s\n' "$*" >&2; exit 1; }
 
 [ "$(uname -s)" = "Darwin" ] || fail "Agentry is a macOS app for now."
-for tool in curl shasum hdiutil ditto; do
+for tool in curl shasum hdiutil ditto codesign spctl; do
   command -v "$tool" >/dev/null 2>&1 || fail "missing $tool"
 done
 
@@ -55,6 +58,16 @@ mkdir -p "$mount"
 hdiutil attach "$tmp/Agentry.dmg" -nobrowse -quiet -mountpoint "$mount" || fail "couldn't open the disk image"
 [ -d "$mount/$APP_NAME" ] || fail "$APP_NAME not found in the disk image"
 
+# Check the signature before touching an installed copy. curl doesn't mark
+# downloads as quarantined, so macOS wouldn't run this check on its own.
+codesign --verify --deep --strict \
+  -R="anchor apple generic and certificate leaf[subject.OU] = \"$TEAM_ID\"" \
+  "$mount/$APP_NAME" 2>/dev/null \
+  || fail "$APP_NAME isn't signed by Agentry's developer (team $TEAM_ID); not installing"
+spctl --assess --type execute "$mount/$APP_NAME" 2>/dev/null \
+  || fail "macOS doesn't accept $APP_NAME as notarised; not installing"
+say "Signature OK."
+
 # Quit a running copy so it can be replaced.
 if pgrep -x agentry-app >/dev/null 2>&1; then
   say "Quitting the running Agentry…"
@@ -66,7 +79,7 @@ if [ -n "${AGENTRY_APP_DIR:-}" ]; then dest="$AGENTRY_APP_DIR"
 elif [ -w /Applications ]; then dest="/Applications"
 else dest="$HOME/Applications"; fi
 mkdir -p "$dest"
-say "Installing to $dest/$APP_NAME…"
+say "Installing to $dest/${APP_NAME}…"
 rm -rf "${dest:?}/$APP_NAME"
 ditto "$mount/$APP_NAME" "$dest/$APP_NAME"
 hdiutil detach "$mount" -quiet >/dev/null 2>&1 || true
