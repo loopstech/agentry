@@ -117,6 +117,10 @@ export interface Session {
   endedAt: number | null;
   needsSince: number | null;
   pinned: boolean;
+  /** Chat is on: a speech bubble with `said`, and a box to message Claude. */
+  talk: boolean;
+  /** Claude's latest reply, shortened for the speech bubble. */
+  said: string | null;
   pending: Pending[];
   /** Picked up from a transcript at launch; no live event yet. */
   backfilled: boolean;

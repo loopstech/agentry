@@ -22,7 +22,8 @@ brew install --cask loopstech/tap/agentry
 
 On first launch a welcome screen offers to **Connect to Claude Code**: it adds Agentry's hooks to `~/.claude/settings.json`, backing the file up first. You can also install the `agentry` command and choose a look there.
 
-- **Open the panel:** click the pill under the menu bar, press **⌥⌘A** from any app, or use the menu bar icon.
+- **Open the panel:** click the pill under the menu bar (click the panel's header to close it again), press **⌥⌘A** from any app, or use the menu bar icon.
+- **Chat with a session:** the speech-bubble button on a row shows Claude's latest reply as a bubble and adds a box for messaging Claude. Sending works for sessions in tmux, iTerm2 or WezTerm.
 - **Approve from the keyboard:** with the panel open, **⌘↵** allows and **⌘⌫** denies the top request.
 
 ### Uninstall

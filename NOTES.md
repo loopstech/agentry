@@ -197,3 +197,20 @@ All of these were checked against real sessions. Interactive sessions were drive
   - **Screens connected or disconnected while Agentry runs:** notches are measured at launch. Relaunch, or toggle the setting, to pick up a change.
   - **Other "notch" apps** (e.g. NotchNook) want the same space; turn notch mode off if you use one.
   - **Status icons right next to the notch** can be covered by the ears.
+
+## Chat (added after notch mode)
+
+- **Per session.** The speech-bubble button on a row turns chat on for that session only (`Session.talk`, kept in memory like `pinned`).
+- **Speech bubble:** Claude's latest reply, taken from `Stop`'s `last_assistant_message` (code blocks dropped, markdown markers stripped, at most 280 characters). Typing dots while the session works; hidden while it waits on you. `/clear` empties it.
+- **Message box** (`app/src-tauri/src/talk.rs`): hooks can't start a turn, so the message is typed into the session's terminal, then Return after 150 ms so Claude Code doesn't treat the burst as a paste.
+
+  | Where the session runs | How |
+  |---|---|
+  | tmux | `send-keys -l` into the exact pane, then `Enter` |
+  | iTerm2 | AppleScript `write text` to the exact session; the message is passed as an argument, never put into the script |
+  | WezTerm | `wezterm cli send-text --no-paste` |
+  | Anything else | Refused with a message to use ↗ instead |
+
+  - Line breaks become spaces, control characters are removed, and messages are capped at 4,000 characters.
+  - It refuses when the session has ended, is waiting on a request (typing would answer Claude's terminal dialog), was picked up at launch, or when no `claude`/`node`/version-named process is left on the recorded tty, so text never lands in a bare shell.
+  - Verified against Claude Code 2.1.328 in tmux: the typed prompt was submitted and answered. The iTerm2 and WezTerm paths need a real check.

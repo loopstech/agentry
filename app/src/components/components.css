@@ -118,12 +118,11 @@ button {
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0;
   border: 0;
   border-radius: 0 0 14px 14px;
   background: #000;
   color: #f5f5f5;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   cursor: default;
 }
 .notch-pill:focus-visible {
@@ -133,14 +132,29 @@ button {
 .notch-ear {
   display: flex;
   align-items: center;
+  /* Each ear's content sits centred in it (width set from NOTCH_EAR). */
+  justify-content: center;
+  width: var(--ear);
+  height: 100%;
 }
-.notch-pill .avatar-sm {
-  width: 20px;
-  height: 20px;
+/* Scoped under .frame-notch so it outranks the themes' own small avatars
+   (Crew's are 30px on a navy disc, taller than the notch and off-colour on
+   black). The ring stays black, except Crew's accent ring when waiting. */
+.frame-notch .notch-pill .avatar-sm {
+  width: 22px;
+  height: 22px;
   font-size: 9px;
   border-color: #000;
 }
-.notch-pill .pill-avatars > * + * {
+.frame-notch.theme-crew .notch-pill .avatar-sm {
+  padding: 1px;
+  background: #000;
+  box-shadow: 0 0 0 2px #000;
+}
+.frame-notch.theme-crew .notch-pill .avatar-sm.avatar-waiting {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.frame-notch .notch-pill .pill-avatars > * + * {
   margin-left: -7px;
 }
 .notch-count {
@@ -174,7 +188,6 @@ button {
 .frame-notch .panel.panel-notch {
   border-radius: 0 0 var(--radius-panel) var(--radius-panel);
   padding-top: calc(var(--notch-h) + 4px);
-  box-shadow: inset 0 var(--notch-h) 0 0 #000, var(--shadow);
 }
 
 /* ---------- Panel ---------- */
@@ -526,6 +539,143 @@ button {
 .field input::placeholder {
   color: var(--faint);
 }
+/* ---------- Chat: speech bubble and message box ---------- */
+
+.icon-button-on {
+  color: var(--text);
+  background: var(--surface-3);
+}
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* The avatar's speech bubble, its tail pointing up at the avatar. */
+.bubble {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 4px 14px 14px 14px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  animation: bubble-in 160ms ease-out;
+}
+.bubble::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 0;
+  width: 10px;
+  height: 8px;
+  background: inherit;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.bubble-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.bubble-typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+.bubble-typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: bubble-dot 1.2s ease-in-out infinite;
+}
+.bubble-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.bubble-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@keyframes bubble-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble,
+  .bubble-typing i {
+    animation: none;
+  }
+}
+.message-field {
+  position: relative;
+}
+.message-field input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 40px 0 14px;
+  border: 1px solid var(--surface-3);
+  border-radius: 17px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.message-field input::placeholder {
+  color: var(--faint);
+}
+.message-field input:disabled {
+  opacity: 0.6;
+}
+.message-field input:focus-visible,
+.message-send:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.message-send {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--surface);
+}
+.message-send:disabled {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.message-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
 .deny {
   display: flex;
   flex-direction: column;
@@ -790,13 +940,19 @@ button {
 }
 
 /* On a notch: black where it meets the notch, whatever the theme. The collar
-   is part of the shape so it stays put while the shape grows. */
+   is part of the shape so it stays put while the shape grows.
+   A local --shadow (the pulse animation uses it too): the themes' shadows
+   (Crew's blurs 44px, 62px below) overflow the notch window's 24px side /
+   28px bottom margin and get cut off in hard lines, and Crew's 1px outline
+   would run up the black collar, seaming it off from the shoulders. */
 .island-shape.island-shape-notch {
+  --shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
   border-radius: 0 0 14px 14px;
   background: #000;
-  box-shadow: inset 0 var(--notch-h) 0 0 #000, 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 var(--notch-h) 0 0 #000, var(--shadow);
 }
 .island-shape.island-shape-notch.is-expanded {
+  --shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   border-radius: 0 0 var(--radius-panel) var(--radius-panel);
   background: var(--surface);
   box-shadow: inset 0 var(--notch-h) 0 0 #000, var(--shadow);

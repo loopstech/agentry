@@ -1,8 +1,9 @@
 import type { Theme } from "../themes/types";
 import { needsUser, type Session } from "../types";
 import { elapsed } from "../format";
-import { Check, Close, Jump } from "./Icons";
-import { dismissSession, jumpToSession } from "../useSessions";
+import { Chat, Check, Close, Jump } from "./Icons";
+import { dismissSession, jumpToSession, setTalk } from "../useSessions";
+import { MessageBox, SpeechBubble } from "./Chat";
 import { RequestCard } from "./RequestCard";
 import { Transcript } from "./Transcript";
 
@@ -55,6 +56,15 @@ export function SessionRow({ session: s, theme, now, open, onToggle, notify }: P
             {s.progress.done}/{s.progress.total}
           </span>
         )}
+        <button
+          className={`icon-button${s.talk ? " icon-button-on" : ""}`}
+          aria-pressed={s.talk}
+          aria-label={`Chat with ${s.title}`}
+          title={s.talk ? "Hide chat" : "Chat"}
+          onClick={() => setTalk(s.id, !s.talk).catch(() => {})}
+        >
+          <Chat />
+        </button>
         <button className="icon-button" aria-label={`Go to ${s.title}`} title="Go to session" onClick={jump}>
           <Jump />
         </button>
@@ -78,6 +88,13 @@ export function SessionRow({ session: s, theme, now, open, onToggle, notify }: P
       {s.progress && s.progress.total > 0 && (
         <div className="row-indent">
           <Progress done={s.progress.done} total={s.progress.total} />
+        </div>
+      )}
+
+      {s.talk && (
+        <div className="row-indent chat">
+          <SpeechBubble session={s} />
+          <MessageBox session={s} notify={notify} />
         </div>
       )}
 
