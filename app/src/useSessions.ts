@@ -41,6 +41,13 @@ export const respondRequest = (requestId: string, response: UiResponse) =>
  *  short description, rejects with a readable reason. */
 export const jumpToSession = (id: string) => invoke<string>("jump_to_session", { id });
 
+/** Turn chat (speech bubble and message box) on or off for a session. */
+export const setTalk = (id: string, talk: boolean) => invoke<boolean>("set_talk", { id, talk });
+
+/** Type a message into the session's terminal. Resolves to a short
+ *  description, rejects with a readable reason (e.g. unsupported terminal). */
+export const sendMessage = (id: string, text: string) => invoke<string>("send_message", { id, text });
+
 export const setPanelOpen = (open: boolean) => invoke<void>("set_panel_open", { open }).catch(() => {});
 
 /** The user's settings, kept live: changes from any window (or from

@@ -561,6 +561,8 @@ const base: Session = {
   endedAt: null,
   needsSince: null,
   pinned: false,
+  talk: false,
+  said: null,
   pending: [],
   backfilled: false,
 };

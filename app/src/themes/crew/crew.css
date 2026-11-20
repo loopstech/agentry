@@ -247,6 +247,30 @@
   background: #0f1030;
   border-radius: 14px;
 }
+.theme-crew .message-field input {
+  height: 40px;
+  padding-right: 46px;
+  border-radius: 20px;
+  border: 2px solid var(--surface-3);
+  background: var(--surface);
+}
+.theme-crew .message-send {
+  top: 4px;
+  right: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.theme-crew .message-send:disabled {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.theme-crew .bubble {
+  border-radius: 6px 18px 18px 18px;
+  padding: 10px 14px;
+}
 .theme-crew .field input {
   height: 40px;
   border-radius: 20px;

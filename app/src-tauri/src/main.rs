@@ -7,6 +7,7 @@ mod focus;
 mod hit;
 mod macos;
 mod sounds;
+mod talk;
 mod tray;
 mod window;
 
@@ -106,6 +107,64 @@ async fn jump_to_session(
             }
         })?;
         focus::run(&plan)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Turn chat (speech bubble and message box) on or off for one session.
+#[tauri::command]
+fn set_talk(status: tauri::State<'_, AppStatus>, id: String, talk: bool) -> bool {
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    sessions.is_some_and(|s| s.set_talk(&id, talk))
+}
+
+/// Type a message into the session's terminal and press Return. Refuses
+/// when the text could land somewhere other than Claude's prompt.
+#[tauri::command]
+async fn send_message(
+    status: tauri::State<'_, AppStatus>,
+    id: String,
+    text: String,
+) -> Result<String, String> {
+    let text = talk::clean(&text).ok_or("Type a message first")?;
+    let sessions = status.0.lock().unwrap().sessions.clone();
+    let session = sessions
+        .ok_or("Agentry isn't ready yet")?
+        .snapshot()
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or("That session is gone")?;
+    if session.status == agentry_server::store::Status::Done || session.ended_at.is_some() {
+        return Err("This session has ended".into());
+    }
+    if session.status.needs_user() {
+        // Typing now would answer Claude's dialog in the terminal.
+        return Err("Answer Claude's request first".into());
+    }
+    if session.backfilled {
+        return Err(
+            "This session started before Agentry, so its terminal isn't known yet. \
+                    It will be once the session does something."
+                .into(),
+        );
+    }
+    let tty = session
+        .terminal
+        .tty
+        .clone()
+        .ok_or("Agentry doesn't know this session's terminal yet")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let w = focus::Where {
+            env: &session.terminal.env,
+            tty: Some(tty.as_str()),
+            cwd: &session.cwd,
+        };
+        let plan = talk::plan(&w, &text)?;
+        if !talk::claude_on_tty(&tty) {
+            return Err("Claude Code isn't running in this session's terminal anymore".into());
+        }
+        talk::run(&plan)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -405,6 +464,8 @@ fn main() {
             pin_session,
             respond_request,
             jump_to_session,
+            set_talk,
+            send_message,
             get_transcript,
             set_panel_open,
             get_config,

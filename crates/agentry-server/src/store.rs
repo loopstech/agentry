@@ -199,6 +199,11 @@ pub struct Session {
     /// When the session started waiting on the user.
     pub needs_since: Option<u64>,
     pub pinned: bool,
+    /// Chat is on for this session: the avatar shows `said` as a speech
+    /// bubble and the row has a box for messaging Claude.
+    pub talk: bool,
+    /// Claude's latest reply (from `Stop`), shortened for a speech bubble.
+    pub said: Option<String>,
     /// Requests waiting for the user in the widget, oldest first.
     pub pending: Vec<Pending>,
 
@@ -235,6 +240,8 @@ impl Session {
             ended_at: None,
             needs_since: None,
             pinned: false,
+            talk: false,
+            said: None,
             pending: Vec::new(),
             activity: None,
             note: Some("Ready".into()),
@@ -415,6 +422,7 @@ impl Store {
         match event {
             "SessionStart" => {
                 if str_field(p, "source") == Some("clear") {
+                    s.said = None;
                     s.tasks.clear();
                     s.helpers.clear();
                     s.activity = None;
@@ -542,6 +550,9 @@ impl Store {
                     h.done = true;
                     h.ended_at = Some(now);
                     h.subtitle = "Done".into();
+                }
+                if let Some(m) = str_field(p, "last_assistant_message").map(plain_reply) {
+                    s.said = (!m.is_empty()).then_some(m);
                 }
                 s.set_status(Status::Idle, Some("Finished — ready for you".into()), now);
             }
@@ -725,6 +736,44 @@ impl Store {
             _ => false,
         }
     }
+
+    pub fn set_talk(&mut self, id: &str, talk: bool) -> bool {
+        match self.sessions.get_mut(id) {
+            Some(s) if s.talk != talk => {
+                s.talk = talk;
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Longest speech bubble, in characters.
+const MAX_SAID: usize = 280;
+
+/// Claude's reply as plain text for a speech bubble: code blocks dropped,
+/// markdown markers removed, whitespace collapsed, shortened.
+fn plain_reply(markdown: &str) -> String {
+    let mut out = Vec::new();
+    let mut in_code = false;
+    for line in markdown.lines() {
+        let t = line.trim();
+        if t.starts_with("```") {
+            in_code = !in_code;
+            continue;
+        }
+        if in_code {
+            continue;
+        }
+        let t = t.trim_start_matches('#').trim_start();
+        let t = t
+            .strip_prefix("- ")
+            .or_else(|| t.strip_prefix("* "))
+            .or_else(|| t.strip_prefix("> "))
+            .unwrap_or(t);
+        out.push(t.replace("**", "").replace('`', ""));
+    }
+    truncate(&out.join(" "), MAX_SAID)
 }
 
 fn str_field<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
@@ -1611,5 +1660,61 @@ mod tests {
             json!({"hook_event_name": "TaskCreated", "session_id": "a", "cwd": "/w/a", "agent_id": "x", "task_id": "1", "task_subject": "Sub"}),
         );
         assert!(s.snapshot()[0].progress.is_none());
+    }
+
+    #[test]
+    fn remembers_claudes_reply_for_the_speech_bubble() {
+        let mut s = Store::new();
+        ev(
+            &mut s,
+            1,
+            json!({"hook_event_name": "UserPromptSubmit", "session_id": "a", "cwd": "/w/a", "prompt": "go"}),
+        );
+        assert_eq!(s.get("a").unwrap().said, None);
+        ev(
+            &mut s,
+            2,
+            json!({"hook_event_name": "Stop", "session_id": "a", "last_assistant_message": "## Done\n\nI fixed **the bug** in `login.ts`:\n```ts\nconst x = 1;\n```\n- tests pass"}),
+        );
+        assert_eq!(
+            s.get("a").unwrap().said.as_deref(),
+            Some("Done I fixed the bug in login.ts: tests pass")
+        );
+        // A subagent's Stop doesn't replace it, and /clear empties it.
+        ev(
+            &mut s,
+            3,
+            json!({"hook_event_name": "Stop", "session_id": "a", "agent_id": "x", "last_assistant_message": "sub"}),
+        );
+        assert_eq!(
+            s.get("a").unwrap().said.as_deref(),
+            Some("Done I fixed the bug in login.ts: tests pass")
+        );
+        ev(
+            &mut s,
+            4,
+            json!({"hook_event_name": "SessionStart", "session_id": "a", "source": "clear"}),
+        );
+        assert_eq!(s.get("a").unwrap().said, None);
+
+        let long = "word ".repeat(200);
+        assert_eq!(plain_reply(&long).chars().count(), MAX_SAID);
+    }
+
+    #[test]
+    fn talk_is_per_session() {
+        let mut s = Store::new();
+        for id in ["a", "b"] {
+            ev(
+                &mut s,
+                1,
+                json!({"hook_event_name": "SessionStart", "session_id": id, "cwd": "/w"}),
+            );
+        }
+        assert!(s.set_talk("a", true));
+        assert!(!s.set_talk("a", true), "no change, nothing to push");
+        assert!(!s.set_talk("missing", true));
+        assert!(s.get("a").unwrap().talk);
+        assert!(!s.get("b").unwrap().talk);
     }
 }

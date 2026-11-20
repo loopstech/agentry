@@ -257,7 +257,15 @@ export function Island() {
                   maxHeight: maxPanelHeight ?? undefined,
                 }}
               >
-                <header className="panel-header" {...drag} onClick={undefined}>
+                <header
+                  className="panel-header"
+                  {...drag}
+                  // Clicking the header closes the panel, like clicking the pill
+                  // opens it; its buttons keep their own actions.
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button")) drag.onClick();
+                  }}
+                >
                   <span className="panel-title">Agentry</span>
                   <span className="panel-count">{plural(sessions.length, "session", "sessions")}</span>
                   <button
@@ -351,7 +359,9 @@ function NotchPill(props: {
   return (
     <button
       className={`notch-pill${props.pulse ? " pill-pulse" : ""}`}
-      style={{ width: props.notchWidth + ear * 2, height: props.notchHeight }}
+      style={
+        { width: props.notchWidth + ear * 2, height: props.notchHeight, "--ear": `${ear}px` } as React.CSSProperties
+      }
       aria-label={props.label}
       onClick={props.onClick}
     >

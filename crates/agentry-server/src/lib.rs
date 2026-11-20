@@ -214,6 +214,11 @@ impl Sessions {
         self.update(|s| s.set_pinned(id, pinned))
     }
 
+    /// Turn chat (speech bubble and message box) on or off for a session.
+    pub fn set_talk(&self, id: &str, talk: bool) -> bool {
+        self.update(|s| s.set_talk(id, talk))
+    }
+
     fn apply(&self, envelope: &Envelope) -> bool {
         self.update(|s| s.apply(envelope, now_ms()))
     }

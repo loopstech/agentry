@@ -60,7 +60,9 @@ const EDITORS: &[(&str, &str, &str)] = &[
     ("com.vscodium", "VSCodium", "vscodium"),
 ];
 
-fn safe(value: &str, extra: &str) -> Option<String> {
+/// `value` if it's non-empty, short, and only ASCII letters, digits and
+/// `extra`; safe to put into a script or command.
+pub(crate) fn safe(value: &str, extra: &str) -> Option<String> {
     (!value.is_empty()
         && value.len() <= 200
         && value
