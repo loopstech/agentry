@@ -222,8 +222,10 @@ pub fn toggle_island(app: &tauri::AppHandle) {
 /// was hidden, and focuses it so ⌘↵ / ⌘⌫ work.
 pub fn toggle_panel(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
-        let _ = w.set_focus();
+        if !macos::focus_island(&w) {
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
     }
     let _ = app.emit("agentry://toggle-panel", ());
 }
@@ -390,6 +392,7 @@ fn main() {
         }))
         .plugin(extras::shortcut_plugin())
         .plugin(extras::autostart_plugin())
+        .plugin(macos::panel_plugin())
         .manage(AppStatus::default())
         .manage(window::Placement::default())
         .manage(NotchMode::default())
@@ -427,6 +430,7 @@ fn main() {
                     .set_notches(macos::notches());
                 window::place(&main, config.appearance.notch);
                 *app.state::<NotchMode>().0.lock().unwrap() = Some(config.appearance.notch);
+                macos::make_panel(&main);
                 macos::float_everywhere(&main);
                 let _ = main.show();
             }

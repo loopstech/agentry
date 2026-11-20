@@ -80,6 +80,79 @@ fn island_behaviour(current: usize) -> usize {
         | FULL_SCREEN_AUXILIARY
 }
 
+/// The island as a macOS panel (NSPanel), the kind of window native notch
+/// apps use. A non-activating panel floats over other apps' full-screen
+/// Spaces and isn't shuffled away by Stage Manager, and clicking it doesn't
+/// pull Agentry to the front. It can still take the keyboard, for notes and
+/// answers.
+#[cfg(target_os = "macos")]
+mod island_panel {
+    tauri_nspanel::tauri_panel! {
+        panel!(AgentryIsland {
+            config: {
+                can_become_key_window: true,
+                is_floating_panel: true
+            }
+        })
+    }
+}
+
+/// The plugin that keeps track of panels (a no-op elsewhere).
+pub fn panel_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    #[cfg(target_os = "macos")]
+    return tauri_nspanel::init();
+    #[cfg(not(target_os = "macos"))]
+    tauri::plugin::Builder::new("agentry-panel").build()
+}
+
+/// Turn the island's window into a non-activating panel. Call once, at
+/// launch, on the main thread, before `float_everywhere`.
+pub fn make_panel(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::{StyleMask, WebviewWindowExt};
+        match win.to_panel::<island_panel::AgentryIsland>() {
+            Ok(panel) => {
+                if let Err(e) =
+                    panel.add_style_mask(StyleMask::empty().nonactivating_panel().into())
+                {
+                    tracing::warn!("couldn't make the island non-activating: {e:?}");
+                }
+            }
+            Err(e) => tracing::warn!("couldn't turn the island into a panel: {e}"),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = win;
+}
+
+/// Bring the island forward and give it the keyboard without activating
+/// Agentry, so the app you're in stays in front. Returns false where that
+/// isn't available (the caller then focuses the window normally).
+pub fn focus_island(win: &WebviewWindow) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        use tauri_nspanel::ManagerExt;
+        let app = win.app_handle().clone();
+        if app.get_webview_panel(win.label()).is_err() {
+            return false;
+        }
+        let label = win.label().to_string();
+        let run = app.clone().run_on_main_thread(move || {
+            if let Ok(panel) = app.get_webview_panel(&label) {
+                panel.show_and_make_key();
+            }
+        });
+        run.is_ok()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = win;
+        false
+    }
+}
+
 /// Keep the island showing whichever app is in front and on every Space,
 /// including over full-screen apps. Call once, at launch, on the main thread.
 ///
@@ -129,6 +202,8 @@ pub fn reassert_float(win: &WebviewWindow, to_front: bool) {
             if level != ISLAND_LEVEL {
                 let _: () = msg_send![ns_window, setLevel: ISLAND_LEVEL];
             }
+            // Panels hide when their app isn't active unless told otherwise.
+            let _: () = msg_send![ns_window, setHidesOnDeactivate: false];
             if to_front {
                 let visible: Bool = msg_send![ns_window, isVisible];
                 if visible.as_bool() {
