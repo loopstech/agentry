@@ -18,12 +18,10 @@ button {
 }
 
 .frame {
-  display: inline-block;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   box-sizing: border-box;
-}
-
-.content {
-  display: inline-block;
 }
 
 /* ---------- Pill ---------- */
@@ -96,13 +94,10 @@ button {
 
 /* The island attached to a MacBook's notch. The notch itself is black on
    every Mac, so the parts touching it are always black, whatever the theme. */
-.notch-wrap {
-  position: relative;
-}
 /* Concave "shoulders" where the shape meets the top of the screen, like the
    notch's own corners. */
-.notch-wrap::before,
-.notch-wrap::after {
+.island-shape-notch::before,
+.island-shape-notch::after {
   content: "";
   position: absolute;
   top: 0;
@@ -110,11 +105,11 @@ button {
   height: 12px;
   pointer-events: none;
 }
-.notch-wrap::before {
+.island-shape-notch::before {
   left: -12px;
   background: radial-gradient(circle at 0 100%, transparent 11.5px, #000 12px);
 }
-.notch-wrap::after {
+.island-shape-notch::after {
   right: -12px;
   background: radial-gradient(circle at 100% 100%, transparent 11.5px, #000 12px);
 }
@@ -735,6 +730,83 @@ button {
   .step-status-running::before,
   .pill-pulse,
   .panel {
+    animation: none;
+  }
+}
+
+/* ---------- The island's shape ---------- */
+
+/* One shape carries the surface, corners and shadow, and animates its size
+   between the pill and the panel (the window itself never resizes). Its
+   content is clipped to it and fades in after a switch. */
+.island-shape {
+  --island-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --island-time: 440ms;
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transition-property: width, height, border-radius, background-color, box-shadow;
+  transition-duration: var(--island-time);
+  transition-timing-function: var(--island-ease);
+}
+.island-shape:not(.is-expanded) {
+  --island-time: 360ms;
+}
+.island-shape.is-expanded {
+  border-radius: var(--radius-panel);
+}
+/* Centres the content; while the shape is narrower than its content, the
+   content overflows evenly both sides and is clipped. */
+.island-clip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.island-content {
+  flex: none;
+  animation: island-content-in 240ms 70ms ease-out both;
+}
+@keyframes island-content-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The shape draws the surface now, not the pill or panel inside it. */
+.island-shape .island-content > .pill,
+.island-shape .island-content > .notch-pill,
+.island-shape .island-content > .panel {
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+/* On a notch: black where it meets the notch, whatever the theme. The collar
+   is part of the shape so it stays put while the shape grows. */
+.island-shape.island-shape-notch {
+  border-radius: 0 0 14px 14px;
+  background: #000;
+  box-shadow: inset 0 var(--notch-h) 0 0 #000, 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.island-shape.island-shape-notch.is-expanded {
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  background: var(--surface);
+  box-shadow: inset 0 var(--notch-h) 0 0 #000, var(--shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island-shape {
+    transition-duration: 1ms;
+  }
+  .island-content {
     animation: none;
   }
 }

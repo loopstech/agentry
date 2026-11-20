@@ -4,6 +4,7 @@
 
 mod extras;
 mod focus;
+mod hit;
 mod macos;
 mod sounds;
 mod tray;
@@ -396,6 +397,7 @@ fn main() {
         .manage(AppStatus::default())
         .manage(window::Placement::default())
         .manage(NotchMode::default())
+        .manage(hit::HitArea::default())
         .invoke_handler(tauri::generate_handler![
             server_info,
             get_sessions,
@@ -420,6 +422,7 @@ fn main() {
             extras::install_cli,
             extras::finish_welcome,
             window::set_panel_size,
+            hit::set_hit_area,
             get_layout,
         ])
         .setup(|app| {
@@ -448,6 +451,7 @@ fn main() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move { run_server(handle).await });
             watch_config(app.handle().clone());
+            hit::watch(app.handle().clone(), "main");
             Ok(())
         })
         .on_window_event(|win, event| {
