@@ -119,12 +119,45 @@ jobs:
           releaseDraft: true
           includeUpdaterJson: true
 
+      # Tauri notarises the app inside the DMG, not the DMG itself. Notarise
+      # and staple the DMG too, so it opens without a Gatekeeper check (even
+      # offline), then replace the draft's copy. Needs the notarisation
+      # secrets (exported to the environment by "Signing secrets that are set").
+      - name: Notarise the DMG
+        id: dmg
+        env:
+          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          dmg=$(node -p "JSON.parse(process.env.ARTIFACTS).find(p => p.endsWith('.dmg'))")
+          if [ -z "$APPLE_SIGNING_IDENTITY" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_PASSWORD" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "::warning::Notarisation secrets not set; the DMG isn't notarised"
+            exit 0
+          fi
+          codesign --verify --verbose "$dmg"
+          out=$(xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" \
+                  --team-id "$APPLE_TEAM_ID" --wait --timeout 30m --output-format json)
+          echo "$out"
+          status=$(node -p 'JSON.parse(process.argv[1]).status' "$out")
+          if [ "$status" != "Accepted" ]; then
+            id=$(node -p 'JSON.parse(process.argv[1]).id' "$out")
+            xcrun notarytool log "$id" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" || true
+            echo "::error::Apple didn't accept the DMG (status: $status)"
+            exit 1
+          fi
+          xcrun stapler staple "$dmg"
+          spctl -a -t open --context context:primary-signature -vv "$dmg"
+          echo "notarised=true" >> "$GITHUB_OUTPUT"
+
       - name: Upload checksums
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
         run: |
           dmg=$(node -p "JSON.parse(process.env.ARTIFACTS).find(p => p.endsWith('.dmg'))")
+          if [ "${{ steps.dmg.outputs.notarised }}" = "true" ]; then
+            # Replace the un-notarised copy tauri-action uploaded (same name).
+            gh release upload "${{ github.ref_name }}" "$dmg" --clobber
+          fi
           cp "$dmg" Agentry.dmg
           shasum -a 256 Agentry.dmg > SHA256SUMS
           cat SHA256SUMS
