@@ -814,6 +814,21 @@ button {
 }
 .step-prompt .step-text {
   color: var(--text);
+  font-weight: 500;
+  line-height: 18px;
+}
+/* Your messages stand out from Claude's steps: a tinted block with an
+   accent bar, and a "You" badge. */
+.step-prompt {
+  align-items: center;
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  border-radius: calc(var(--radius-pill) / 2);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.step-prompt:first-child {
+  margin-top: 0;
 }
 .step-tool .step-text {
   white-space: nowrap;
@@ -825,7 +840,19 @@ button {
 }
 .step-who {
   flex-shrink: 0;
-  font-weight: 600;
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+}
+.step-prompt .step-time {
+  align-self: flex-start;
+  line-height: 18px;
 }
 .step-time {
   flex-shrink: 0;

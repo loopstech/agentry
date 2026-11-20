@@ -2,7 +2,7 @@
 
 A small always-on-top macOS widget that shows every running Claude Code session. You can approve permissions and answer Claude's questions from it, and jump back to the session's window.
 
-> **Status: Phase 6 (ready to release).** Every session shows live in the island. You can approve, deny and answer Claude from it, open a session's recent steps, and jump to its window. It has two themes and a Settings window, lives in the menu bar, and ships as a signed app with auto-updates (once the release secrets are set up; see [RELEASING.md](RELEASING.md)).
+> **Status: Phase 6 (ready to release).** Every session shows live in the island. You can approve, deny and answer Claude from it, open a session's recent steps, and jump to its window. It has six themes and a Settings window, lives in the menu bar, and ships as a signed app with auto-updates (once the release secrets are set up; see [RELEASING.md](RELEASING.md)).
 
 ## Install
 
@@ -106,10 +106,11 @@ Tell me what you see: does the shape line up exactly with your notch (width, hei
    - characters instead of initials, with wide eyes and a "!" or "?" badge when waiting;
    - step dots, a "Helpers" box, and "Go for it" / "Nope…" buttons.
    - Quit and reopen Agentry: it stays on Crew.
+   - Try the others too: **Terminal** (green phosphor, ASCII faces, a blinking cursor while working), **Paper** (the light theme, hand-drawn doodles), **Pixel** (8-bit sprites that hop and bob) and **Glass** (translucent, glossy orbs).
 3. **Accent.** Pick a swatch, or **Custom**. The island's accent changes instantly.
 4. **Sounds.** Use **Play "needs you"** and **Play "finished"**, then the volume slider. Then confirm sounds also play on their own:
-   - when a session starts waiting on you (Mono: Tink, Crew: Pop);
-   - when one finishes (Mono: Purr, Crew: Hero).
+   - when a session starts waiting on you (Mono: Tink, Crew: Pop, Terminal: Morse, Paper: Ping, Pixel: Funk, Glass: Glass);
+   - when one finishes (Mono: Purr, Crew: Hero, Terminal: Bottle, Paper: Blow, Pixel: Frog, Glass: Submarine).
    - Quiet mode silences them.
 5. **Hover to open.** Turn it on; resting the pointer on the pill opens the panel, and moving away closes it again.
 6. **Connect to Claude Code.** The Claude Code section shows whether hooks are installed, and can install or remove them. It backs up your settings first.

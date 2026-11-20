@@ -1,0 +1,220 @@
+/* Terminal theme tokens and looks. Structure lives in components.css. */
+
+.theme-terminal,
+.tokens-terminal {
+  --font: "Geist Mono", ui-monospace, Menlo, monospace;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --accent: #ffb000;
+  --on-accent: #0f1030;
+  --surface: #050a06;
+  --surface-2: #0b140d;
+  --surface-3: #163019;
+  --line: #13261a;
+  --text: #4dff7a; /* 13:1 on the surface */
+  --muted: #2fbf55; /* 7:1 */
+  --faint: #1f7a39; /* decorative only */
+  --error: #ff5f56;
+  --glow: 0 0 6px rgba(77, 255, 122, 0.35);
+  --radius-pill: 6px;
+  --radius-panel: 8px;
+  --shadow: 0 0 0 1px #1d3a24, 0 10px 30px rgba(0, 0, 0, 0.45);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+.theme-terminal {
+  text-shadow: var(--glow);
+}
+
+/* Faint scanlines over the panel. */
+.theme-terminal .island-shape.is-expanded .island-clip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(0, 0, 0, 0.18) 2px 3px);
+  border-radius: inherit;
+}
+
+/* ----- Avatars: ASCII faces ----- */
+.theme-terminal .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--faint);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  white-space: pre;
+  letter-spacing: -0.02em;
+}
+.theme-terminal .avatar-md {
+  width: 52px;
+  height: 30px;
+  font-size: 12px;
+}
+.theme-terminal .avatar-sm {
+  width: 26px;
+  height: 22px;
+  font-size: 10px;
+}
+.theme-terminal .avatar-waiting {
+  border-color: var(--accent);
+  color: var(--accent);
+  text-shadow: 0 0 6px var(--accent);
+}
+.theme-terminal .avatar-error {
+  border-color: var(--error);
+  color: var(--error);
+}
+.theme-terminal .avatar-done {
+  color: var(--faint);
+  border-color: var(--line);
+  text-shadow: none;
+}
+.theme-terminal .avatar-md.avatar-waiting {
+  animation: terminal-blink 1s steps(1) infinite;
+}
+
+/* A block cursor after a working session's subtitle. */
+.theme-terminal .row-working .row-subtitle::after {
+  content: "▋";
+  margin-left: 3px;
+  animation: terminal-blink 1s steps(1) infinite;
+}
+@keyframes terminal-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ----- Pill and panel ----- */
+.theme-terminal .pill {
+  font-size: 12px;
+}
+.theme-terminal .pill-strong {
+  font-weight: 700;
+}
+.theme-terminal .panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.theme-terminal .panel-title::before {
+  content: "$ ";
+  color: var(--muted);
+}
+.theme-terminal .row-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+.theme-terminal .row-subtitle,
+.theme-terminal .row-hint {
+  font-size: 12px;
+}
+.theme-terminal .row-indent {
+  margin-left: 64px;
+}
+.theme-terminal .row-done .row-main,
+.theme-terminal .row-done .row-indent {
+  opacity: 0.55;
+}
+.theme-terminal .row-needs .row-title .title::before {
+  content: "! ";
+  color: var(--accent);
+}
+
+/* ----- Progress: [#####-------] ----- */
+.theme-terminal .ascii-progress {
+  font-size: 12px;
+  color: var(--faint);
+  white-space: pre;
+}
+.theme-terminal .ascii-progress-done {
+  color: var(--text);
+}
+
+/* ----- Helpers ----- */
+.theme-terminal .helpers {
+  border-left-color: var(--faint);
+}
+.theme-terminal .prompt-mark {
+  color: var(--accent);
+  font-weight: 700;
+}
+.theme-terminal .prompt-mark-done {
+  color: var(--faint);
+}
+
+/* ----- Buttons, fields and boxes: square and outlined ----- */
+.theme-terminal .btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 4px;
+  border: 1px solid var(--faint);
+  background: none;
+  font-size: 12px;
+}
+.theme-terminal .btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  text-shadow: none;
+}
+.theme-terminal .btn-link {
+  border: 0;
+}
+.theme-terminal .btn-ghost {
+  border-style: dashed;
+}
+.theme-terminal .icon-button,
+.theme-terminal .icon-button-filled {
+  border-radius: 4px;
+}
+.theme-terminal .icon-button-filled {
+  background: none;
+  border: 1px solid var(--line);
+}
+.theme-terminal .field input,
+.theme-terminal .message-field input {
+  border-radius: 4px;
+  border-color: var(--faint);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.theme-terminal .message-send {
+  border-radius: 3px;
+  background: var(--text);
+  color: var(--surface);
+}
+.theme-terminal .code,
+.theme-terminal .option,
+.theme-terminal .empty,
+.theme-terminal .toast {
+  border-radius: 4px;
+}
+.theme-terminal .code {
+  border: 1px solid var(--line);
+  background: #000;
+}
+.theme-terminal .bubble {
+  border-radius: 2px 8px 8px 8px;
+  border: 1px solid var(--faint);
+  background: var(--surface);
+}
+.theme-terminal .bubble-typing i {
+  border-radius: 0;
+  background: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-terminal .avatar-md.avatar-waiting,
+  .theme-terminal .row-working .row-subtitle::after {
+    animation: none;
+  }
+}

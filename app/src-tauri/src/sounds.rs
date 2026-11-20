@@ -58,6 +58,14 @@ pub fn sound_name(cue: Cue, theme: Theme) -> &'static str {
         (Theme::Mono, Cue::Finished) => "Purr",
         (Theme::Crew, Cue::NeedsYou) => "Pop",
         (Theme::Crew, Cue::Finished) => "Hero",
+        (Theme::Terminal, Cue::NeedsYou) => "Morse",
+        (Theme::Terminal, Cue::Finished) => "Bottle",
+        (Theme::Paper, Cue::NeedsYou) => "Ping",
+        (Theme::Paper, Cue::Finished) => "Blow",
+        (Theme::Pixel, Cue::NeedsYou) => "Funk",
+        (Theme::Pixel, Cue::Finished) => "Frog",
+        (Theme::Glass, Cue::NeedsYou) => "Glass",
+        (Theme::Glass, Cue::Finished) => "Submarine",
     }
 }
 
@@ -146,5 +154,11 @@ mod tests {
         };
         play_if_enabled(Cue::NeedsYou, &c);
         assert_eq!(sound_name(Cue::Finished, Theme::Crew), "Hero");
+        // Each theme has its own pair of sounds.
+        let pairs: std::collections::HashSet<_> = Theme::ALL
+            .into_iter()
+            .map(|t| (sound_name(Cue::NeedsYou, t), sound_name(Cue::Finished, t)))
+            .collect();
+        assert_eq!(pairs.len(), Theme::ALL.len());
     }
 }

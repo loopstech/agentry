@@ -214,3 +214,15 @@ All of these were checked against real sessions. Interactive sessions were drive
   - Line breaks become spaces, control characters are removed, and messages are capped at 4,000 characters.
   - It refuses when the session has ended, is waiting on a request (typing would answer Claude's terminal dialog), was picked up at launch, or when no `claude`/`node`/version-named process is left on the recorded tty, so text never lands in a bare shell.
   - Verified against Claude Code 2.1.328 in tmux: the typed prompt was submitted and answered. The iTerm2 and WezTerm paths need a real check.
+
+## More themes (added after chat)
+
+- **Terminal:** green phosphor on near-black (text 13:1), Geist Mono everywhere, faint scanlines over the panel. Avatars are ASCII faces, `[^_^]`, with brackets varying per session; the pill shows only the eyes. A block cursor blinks after a working session's subtitle; progress is `[#####-------]`.
+- **Paper:** the first light theme. Warm off-white, ink text (16:1, muted 5.6:1), Fraunces for titles. Avatars are hand-drawn doodles: a highlighter-coloured head plus a tuft, glasses or ears, chosen from the avatar number.
+- **Pixel:** PICO-8-like palette, Silkscreen for headings (Geist Mono for body text, which pixel fonts make hard to read), hard outlines and stepped shadows. Avatars are 12×12 sprites (slime, invader, robot, cat) drawn as SVG rects with `crispEdges`, with two-frame idle, busy and hop animations. Progress is a row of HP blocks.
+- **Glass:** an 80% translucent dark tint with a top sheen, the system font, and glossy orbs coloured around the wheel per session; a light sweeps the rim while working.
+  - Tint only, no blur: blurring the desktop would need macOS's vibrancy view behind the webview, and the island's shape animates inside a fixed window. 80% keeps white text at 8:1 or better even over a white desktop.
+  - The Settings window uses opaque versions of its colours (`.tokens-glass`).
+  - The system blue is too dark to read as text on the tint, so accent-coloured text is lightened.
+- **Sounds:** Terminal Morse/Bottle, Paper Ping/Blow, Pixel Funk/Frog, Glass Glass/Submarine.
+- `appearance.theme` accepts the six names; `Theme::ALL` and `Theme::name` in `config.rs` are the single list.

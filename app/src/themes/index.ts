@@ -3,8 +3,12 @@ import type { Config } from "../types";
 import type { Theme } from "./types";
 import { mono } from "./mono";
 import { crew } from "./crew";
+import { terminal } from "./terminal";
+import { paper } from "./paper";
+import { pixel } from "./pixel";
+import { glass } from "./glass";
 
-export const THEMES: Theme[] = [mono, crew];
+export const THEMES: Theme[] = [mono, crew, terminal, paper, pixel, glass];
 
 export function themeFor(config: Config | null): Theme {
   return THEMES.find((t) => t.id === config?.appearance.theme) ?? mono;

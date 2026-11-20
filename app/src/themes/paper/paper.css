@@ -1,0 +1,187 @@
+/* Paper theme tokens and looks: the light theme. Structure lives in
+   components.css. */
+
+.theme-paper,
+.tokens-paper {
+  --font: "Geist Sans", -apple-system, system-ui, sans-serif;
+  --font-title: "Fraunces", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --accent: #d9480f;
+  --on-accent: #ffffff;
+  --surface: #faf7f0;
+  --surface-2: #f1ece1;
+  --surface-3: #e2dac8;
+  --line: #e9e2d3;
+  --text: #1f1b16; /* 16:1 on the surface */
+  --muted: #6b6257; /* 5.6:1 */
+  --faint: #a59a8b; /* decorative only */
+  --error: #c92a2a;
+  --radius-pill: 22px;
+  --radius-panel: 26px;
+  --shadow: 0 0 0 1px rgba(60, 45, 20, 0.12), 0 12px 32px rgba(60, 45, 20, 0.22);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+/* ----- Titles in a serif ----- */
+.theme-paper .panel-title,
+.theme-paper .row-title .title,
+.theme-paper .pill-strong,
+.theme-paper .empty-title {
+  font-family: var(--font-title);
+  font-weight: 600;
+}
+.theme-paper .panel-title {
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+.theme-paper .row-title {
+  font-size: 15px;
+}
+.theme-paper .pill-strong {
+  font-size: 14px;
+}
+
+/* ----- Avatars: doodles ----- */
+.theme-paper .avatar {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.theme-paper .avatar-md {
+  width: 46px;
+  height: 46px;
+}
+.theme-paper .avatar-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.theme-paper .avatar-sm.avatar-waiting {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.theme-paper .paper-mark path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.theme-paper .paper-mark circle {
+  fill: var(--accent);
+}
+.theme-paper .avatar-md.avatar-working .paper-doodle {
+  animation: paper-nod 2.2s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+@keyframes paper-nod {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-3deg);
+  }
+}
+
+/* ----- Rows: index cards ----- */
+.theme-paper .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+.theme-paper .row {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffdf8;
+  box-shadow: 0 1px 0 rgba(60, 45, 20, 0.06);
+}
+.theme-paper .row-needs {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.theme-paper .row-indent {
+  margin-left: 58px;
+}
+.theme-paper .row-done .row-main,
+.theme-paper .row-done .row-indent {
+  opacity: 0.6;
+}
+.theme-paper .row-count {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ----- Progress: an inked capsule ----- */
+.theme-paper .paper-progress {
+  height: 7px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--text);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.theme-paper .paper-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 400ms ease;
+}
+
+/* ----- Helpers ----- */
+.theme-paper .helpers {
+  border-left: 2px dotted var(--faint);
+}
+.theme-paper .helper-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* ----- Buttons, fields and boxes ----- */
+.theme-paper .btn {
+  border: 1.5px solid var(--text);
+  background: transparent;
+}
+.theme-paper .btn-primary {
+  background: var(--text);
+  color: var(--surface);
+}
+.theme-paper .btn-link,
+.theme-paper .btn-ghost {
+  border: 0;
+}
+.theme-paper .btn-ghost {
+  border: 1.5px dashed var(--faint);
+}
+.theme-paper .icon-button-filled {
+  background: var(--surface-2);
+}
+.theme-paper .code {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.theme-paper .field input,
+.theme-paper .message-field input {
+  border: 1.5px solid var(--surface-3);
+  background: #fffdf8;
+}
+.theme-paper .message-send:disabled {
+  background: var(--surface-3);
+}
+.theme-paper .bubble {
+  border: 1.5px solid var(--text);
+  background: #fffdf8;
+}
+.theme-paper .bubble::before {
+  top: -8px;
+  left: -1.5px;
+  background: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-paper .avatar-md.avatar-working .paper-doodle {
+    animation: none;
+  }
+  .theme-paper .paper-progress-fill {
+    transition: none;
+  }
+}

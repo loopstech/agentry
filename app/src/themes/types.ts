@@ -1,12 +1,12 @@
 import type { ComponentType } from "react";
-import type { Counts, Session } from "../types";
+import type { Counts, Session, ThemeId } from "../types";
 
 /** What a theme provides. Layout and behaviour are shared; a theme supplies
  *  its stylesheet (scoped under `className`), avatar art, progress style and
  *  wording. Adding a theme = a new folder under themes/ plus one line in
  *  themes/index.ts. */
 export interface Theme {
-  id: "mono" | "crew";
+  id: ThemeId;
   name: string;
   /** One line for the Settings theme picker. */
   description: string;

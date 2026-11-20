@@ -1,0 +1,183 @@
+/* Glass theme tokens and looks. Structure lives in components.css. */
+
+/* Opaque tokens: the Settings window has no desktop behind it. */
+.theme-glass,
+.tokens-glass {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --accent: #0a84ff;
+  --on-accent: #ffffff;
+  --surface: #1e1e24;
+  --surface-2: #2a2a31;
+  --surface-3: #3a3a43;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #ffffff;
+  --muted: rgba(235, 235, 245, 0.68);
+  --faint: rgba(235, 235, 245, 0.35);
+  --error: #ff453a;
+  --radius-pill: 22px;
+  --radius-panel: 26px;
+  --shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.55), 0 16px 40px rgba(0, 0, 0, 0.35);
+  font-family: var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The island itself is see-through. 80% keeps white text at 8:1 or better
+   even over a white desktop. (A real blur of the desktop would need macOS's
+   vibrancy view behind the window; this is tint only.) */
+.theme-glass {
+  --surface: rgba(30, 30, 36, 0.8);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.14);
+}
+/* A soft sheen from the top. Not on a notch, which stays black. */
+.theme-glass .island-shape:not(.island-shape-notch),
+.theme-glass .pill {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 45%), var(--surface);
+}
+
+/* ----- Avatars: glossy orbs ----- */
+.theme-glass .avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 38%),
+    radial-gradient(circle at 50% 62%, hsl(var(--hue) 90% 62%), hsl(var(--hue) 75% 36%));
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.25), 0 2px 6px hsl(var(--hue) 80% 30% / 0.45);
+}
+.theme-glass .avatar-md {
+  width: 38px;
+  height: 38px;
+}
+.theme-glass .avatar-sm {
+  width: 24px;
+  height: 24px;
+  outline: 2px solid rgba(30, 30, 36, 0.9);
+}
+.theme-glass .orb-initials {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.theme-glass .avatar-done {
+  filter: saturate(0.25);
+  opacity: 0.7;
+}
+.theme-glass .avatar-waiting {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-glass .avatar-error {
+  outline: 2px solid var(--error);
+  outline-offset: 2px;
+}
+/* Working: a light sweeping around the orb's rim. */
+.theme-glass .avatar-md.avatar-working::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 70%, rgba(255, 255, 255, 0.9) 85%, transparent 100%);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
+  mask: radial-gradient(circle, transparent 58%, #000 60%);
+  animation: glass-spin 1.4s linear infinite;
+}
+@keyframes glass-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ----- Rows ----- */
+.theme-glass .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 8px;
+}
+.theme-glass .row {
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-2);
+}
+.theme-glass .row-needs {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.theme-glass .row-indent {
+  margin-left: 50px;
+}
+.theme-glass .row-done .row-main,
+.theme-glass .row-done .row-indent {
+  opacity: 0.6;
+}
+.theme-glass .panel-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.theme-glass .row-title {
+  font-weight: 600;
+}
+
+/* Accent text, lightened: the system blue alone is too dark to read on
+   the translucent surface. */
+.theme-glass .row-subtitle.is-needs,
+.theme-glass .message-error,
+.theme-glass .row-count {
+  color: color-mix(in srgb, var(--accent) 55%, #fff);
+}
+
+/* ----- Progress: a capsule with a gradient ----- */
+.theme-glass .glass-progress {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.theme-glass .glass-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent));
+  transition: width 400ms ease;
+}
+
+/* ----- Buttons and fields: the text colour isn't solid here, so filled
+   buttons use the accent instead. ----- */
+.theme-glass .btn {
+  border-radius: 10px;
+  height: 32px;
+}
+.theme-glass .btn-primary,
+.theme-glass .message-send {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.theme-glass .message-send:disabled {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.theme-glass .field input,
+.theme-glass .message-field input {
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.25);
+}
+.theme-glass .code {
+  background: rgba(0, 0, 0, 0.3);
+}
+.theme-glass .bubble {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-glass .avatar-md.avatar-working::after {
+    animation: none;
+  }
+  .theme-glass .glass-progress-fill {
+    transition: none;
+  }
+}
