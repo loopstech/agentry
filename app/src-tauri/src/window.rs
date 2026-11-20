@@ -27,6 +27,10 @@ const BOTTOM_GAP: f64 = 24.0;
 const SAVE_DELAY: Duration = Duration::from_millis(600);
 /// A move event this close to where we put the window is our own doing.
 const OWN_MOVE_TOLERANCE: f64 = 2.0;
+/// Room kept below a dropped island for its open panel.
+const MIN_PANEL_ROOM: f64 = 240.0;
+/// The panel is never squeezed below this.
+const MIN_HEIGHT: f64 = 120.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +98,8 @@ pub fn pick_notch(notches: &[Notch], island_x: f64) -> Option<Notch> {
 struct Layout {
     anchor: Anchor,
     width: f64,
+    /// The height the UI last asked for (it's capped to the screen).
+    wanted_height: f64,
     /// Top-left we last moved the window to.
     placed_at: (f64, f64),
 }
@@ -181,11 +187,44 @@ fn free_anchor(win: &WebviewWindow) -> Option<Anchor> {
         .or_else(|| default_anchor(win))
 }
 
-fn apply(win: &WebviewWindow, placement: &Placement, anchor: Anchor, width: f64, height: f64) {
+/// The window's height for `wanted`, when its top is at `top` on a screen
+/// whose usable area ends at `work_bottom`.
+fn fit_height(wanted: f64, top: f64, work_bottom: f64) -> f64 {
+    wanted
+        .min((work_bottom - top - BOTTOM_GAP).max(MIN_HEIGHT))
+        .max(1.0)
+}
+
+/// Keep a dropped island's window on its screen (`work` is the usable area:
+/// x, y, width, height): wholly inside it sideways, and high enough to leave
+/// the open panel room below.
+fn keep_on_screen(a: Anchor, width: f64, work: (f64, f64, f64, f64)) -> Anchor {
+    let (x, y, w, h) = work;
+    let center_x = if w >= width {
+        a.center_x.clamp(x + width / 2.0, x + w - width / 2.0)
+    } else {
+        x + w / 2.0
+    };
+    let max_top = (y + h - BOTTOM_GAP - MIN_PANEL_ROOM).max(y);
+    Anchor {
+        center_x,
+        top: a.top.clamp(y, max_top),
+    }
+}
+
+fn apply(
+    win: &WebviewWindow,
+    placement: &Placement,
+    anchor: Anchor,
+    width: f64,
+    height: f64,
+    wanted_height: f64,
+) {
     let x = anchor.center_x - width / 2.0;
     *placement.layout.lock().unwrap() = Some(Layout {
         anchor,
         width,
+        wanted_height,
         placed_at: (x, anchor.top),
     });
     let _ = win.set_size(LogicalSize::new(width, height));
@@ -210,7 +249,13 @@ pub fn place(win: &WebviewWindow, notch_mode: bool) -> Option<Notch> {
         return notch;
     };
     let size = size.to_logical::<f64>(scale);
-    apply(win, &placement, anchor, size.width, size.height);
+    let wanted = placement
+        .layout
+        .lock()
+        .unwrap()
+        .map(|l| l.wanted_height)
+        .unwrap_or(size.height);
+    apply(win, &placement, anchor, size.width, size.height, wanted);
     notch
 }
 
@@ -229,15 +274,20 @@ pub fn set_panel_size(
         .unwrap()
         .map(|l| l.anchor)
         .or_else(|| default_anchor(&window));
-    let Some(anchor) = anchor else { return height };
-    let max_height = monitor_for(&window, anchor)
-        .map(|m| {
-            let (_, y, _, h) = logical_work_area(&m);
-            (y + h - anchor.top - BOTTOM_GAP).max(120.0)
-        })
-        .unwrap_or(height);
-    let height = height.min(max_height).max(1.0);
-    apply(&window, &placement, anchor, width.max(1.0), height);
+    let Some(mut anchor) = anchor else {
+        return height;
+    };
+    let wanted = height;
+    let work = monitor_for(&window, anchor).map(|m| logical_work_area(&m));
+    // Floating: keep the whole window on screen (this also fixes a position
+    // saved before it was kept on screen). On a notch it stays put.
+    if let (Some(work), None) = (work, placement.attached_notch()) {
+        anchor = keep_on_screen(anchor, width.max(1.0), work);
+    }
+    let height = work
+        .map(|(_, y, _, h)| fit_height(wanted, anchor.top, y + h))
+        .unwrap_or(wanted.max(1.0));
+    apply(&window, &placement, anchor, width.max(1.0), height, wanted);
     height
 }
 
@@ -272,17 +322,65 @@ pub fn on_moved(win: &Window, position: PhysicalPosition<i32>) {
 
     let gen = placement.save_generation.fetch_add(1, Ordering::SeqCst) + 1;
     let app = app.clone();
+    let label = win.label().to_string();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(SAVE_DELAY).await;
         if app
             .state::<Placement>()
             .save_generation
             .load(Ordering::SeqCst)
-            == gen
+            != gen
         {
-            save_anchor(anchor);
+            return;
         }
+        let anchor = match app.get_webview_window(&label) {
+            Some(w) => settle(&w, anchor).unwrap_or(anchor),
+            None => anchor,
+        };
+        save_anchor(anchor);
     });
+}
+
+/// The window's new size, for the UI.
+#[derive(Clone, Copy, Serialize)]
+struct WindowSize {
+    width: f64,
+    height: f64,
+}
+
+/// After a drag: keep the window on its screen and refit its height to the
+/// room below it, so the open panel doesn't run off the screen. Tells the UI
+/// when the height changes. Returns the anchor it ended up at.
+fn settle(win: &WebviewWindow, dropped: Anchor) -> Option<Anchor> {
+    use tauri::Emitter;
+    let placement = win.state::<Placement>();
+    let layout = (*placement.layout.lock().unwrap())?;
+    let work = logical_work_area(&monitor_for(win, dropped)?);
+    let anchor = keep_on_screen(dropped, layout.width, work);
+    let height = fit_height(layout.wanted_height, anchor.top, work.1 + work.3);
+    let current = win
+        .outer_size()
+        .ok()?
+        .to_logical::<f64>(win.scale_factor().ok()?)
+        .height;
+    if anchor != dropped || (height - current).abs() > 0.5 {
+        apply(
+            win,
+            &placement,
+            anchor,
+            layout.width,
+            height,
+            layout.wanted_height,
+        );
+        let _ = win.app_handle().emit(
+            "agentry://window-size",
+            WindowSize {
+                width: layout.width,
+                height,
+            },
+        );
+    }
+    Some(anchor)
 }
 
 #[cfg(test)]
@@ -293,6 +391,68 @@ mod tests {
     // screen to its right.
     fn builtin() -> Notch {
         Notch::centred(0.0, 0.0, 1512.0, 186.0, 32.0).unwrap()
+    }
+
+    // A 1512×982 screen whose usable area starts below a 32 pt menu bar.
+    const WORK: (f64, f64, f64, f64) = (0.0, 32.0, 1512.0, 950.0);
+
+    #[test]
+    fn height_fits_the_room_below() {
+        // Plenty of room: what was asked for.
+        assert_eq!(fit_height(600.0, 40.0, 982.0), 600.0);
+        // Dragged low: down to the bottom gap.
+        assert_eq!(fit_height(2000.0, 500.0, 982.0), 982.0 - 500.0 - BOTTOM_GAP);
+        // Never below the minimum.
+        assert_eq!(fit_height(2000.0, 950.0, 982.0), MIN_HEIGHT);
+    }
+
+    #[test]
+    fn dropped_island_stays_on_screen() {
+        let width = 548.0;
+        let ok = Anchor {
+            center_x: 756.0,
+            top: 40.0,
+        };
+        assert_eq!(keep_on_screen(ok, width, WORK), ok);
+        // Too far left or right: the whole window comes back on screen.
+        let left = keep_on_screen(
+            Anchor {
+                center_x: 30.0,
+                top: 40.0,
+            },
+            width,
+            WORK,
+        );
+        assert_eq!(left.center_x, width / 2.0);
+        let right = keep_on_screen(
+            Anchor {
+                center_x: 1500.0,
+                top: 40.0,
+            },
+            width,
+            WORK,
+        );
+        assert_eq!(right.center_x, 1512.0 - width / 2.0);
+        // Too low: moved up to leave room for the panel.
+        let low = keep_on_screen(
+            Anchor {
+                center_x: 756.0,
+                top: 900.0,
+            },
+            width,
+            WORK,
+        );
+        assert_eq!(low.top, 982.0 - BOTTOM_GAP - MIN_PANEL_ROOM);
+        // Above the usable area (over the menu bar): moved down to it.
+        let high = keep_on_screen(
+            Anchor {
+                center_x: 756.0,
+                top: 0.0,
+            },
+            width,
+            WORK,
+        );
+        assert_eq!(high.top, 32.0);
     }
 
     #[test]

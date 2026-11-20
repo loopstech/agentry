@@ -74,7 +74,7 @@ cd agentry
 ./target/release/agentry doctor          # everything should be ✓
 ```
 
-A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it.
+A small black pill appears just under the menu bar. Click it to open the panel. Drag it to move it; it reopens where you left it. If you drop it near a screen edge or the bottom, it moves back just enough for the open panel to fit.
 
 ### Notch mode checks (MacBooks with a notch)
 

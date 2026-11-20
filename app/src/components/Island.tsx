@@ -119,6 +119,17 @@ export function Island() {
       .catch(() => {});
   }, [widest, pad.x, pad.top, pad.bottom]);
 
+  // After a drag the app refits the window to the room below it.
+  useEffect(() => {
+    const sub = listen<{ width: number; height: number }>("agentry://window-size", (e) => {
+      setWindowSize(e.payload);
+      setMaxPanelHeight(Math.max(120, e.payload.height - pad.top - pad.bottom));
+    });
+    return () => {
+      sub.then((off) => off());
+    };
+  }, [pad.top, pad.bottom]);
+
   // Only the shape takes the mouse; the rest of the window lets clicks through.
   useEffect(() => {
     if (!shape || !windowSize) return;
