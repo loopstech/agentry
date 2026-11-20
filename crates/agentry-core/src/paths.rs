@@ -63,15 +63,22 @@ pub fn read_connection(home: &Path) -> Option<(u16, String)> {
 }
 
 /// Return the existing token, or create a new random one (file mode 0600).
+///
+/// An existing token is only reused when it's a plain file owned by the same
+/// user as Agentry's directory and nobody else can read it; otherwise it may
+/// have leaked, so a fresh one replaces it.
 pub fn ensure_token(home: &Path) -> io::Result<String> {
+    // Fails unless we own the directory; it's also made private (0700).
+    create_private_dir(home)?;
     let path = token_file(home);
-    if let Ok(existing) = fs::read_to_string(&path) {
-        let existing = existing.trim().to_string();
-        if existing.len() >= 32 {
-            return Ok(existing);
+    if token_file_is_private(home, &path) {
+        if let Ok(existing) = fs::read_to_string(&path) {
+            let existing = existing.trim().to_string();
+            if existing.len() >= 32 {
+                return Ok(existing);
+            }
         }
     }
-    create_private_dir(home)?;
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|e| io::Error::other(e.to_string()))?;
     let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
@@ -94,6 +101,20 @@ pub fn remove_port(home: &Path, port: u16) {
             let _ = fs::remove_file(path);
         }
     }
+}
+
+#[cfg(unix)]
+fn token_file_is_private(home: &Path, path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let (Ok(dir), Ok(file)) = (fs::metadata(home), fs::symlink_metadata(path)) else {
+        return false;
+    };
+    file.file_type().is_file() && file.uid() == dir.uid() && file.mode() & 0o077 == 0
+}
+
+#[cfg(not(unix))]
+fn token_file_is_private(_home: &Path, path: &Path) -> bool {
+    path.is_file()
 }
 
 fn create_private_dir(dir: &Path) -> io::Result<()> {
@@ -145,6 +166,44 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o600);
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exposed_or_linked_token_is_replaced() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let home = dir.path().join("agentry");
+        let a = ensure_token(&home).unwrap();
+
+        // Readable by others: replaced, and the new file is private again.
+        fs::set_permissions(token_file(&home), fs::Permissions::from_mode(0o644)).unwrap();
+        let b = ensure_token(&home).unwrap();
+        assert_ne!(a, b);
+        let mode = fs::metadata(token_file(&home))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+
+        // A symlink to somewhere else: replaced with a real file.
+        let elsewhere = dir.path().join("planted");
+        fs::write(&elsewhere, "f".repeat(64)).unwrap();
+        fs::set_permissions(&elsewhere, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::remove_file(token_file(&home)).unwrap();
+        std::os::unix::fs::symlink(&elsewhere, token_file(&home)).unwrap();
+        let c = ensure_token(&home).unwrap();
+        assert_ne!(c, "f".repeat(64));
+        assert!(fs::symlink_metadata(token_file(&home))
+            .unwrap()
+            .file_type()
+            .is_file());
+
+        // A loose directory is tightened.
+        fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(ensure_token(&home).unwrap(), c);
+        let mode = fs::metadata(&home).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
     }
 
     #[test]

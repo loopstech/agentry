@@ -153,33 +153,70 @@ pub fn plan(w: &Where, text: &str) -> Result<Plan, String> {
     )
 }
 
-/// Whether Claude Code is still running on `tty` (e.g. `ttys004`), so typed
-/// text reaches Claude and not the shell it was started from.
+/// Whether Claude Code is the foreground job on `tty` (e.g. `ttys004`), so
+/// typed text reaches Claude and not the shell it was started from, a
+/// suspended Claude's shell, or some other program.
 pub fn claude_on_tty(tty: &str) -> bool {
     let Some(tty) = safe(tty.trim_start_matches("/dev/"), "/") else {
         return false;
     };
-    let Ok(out) = Command::new("ps")
-        .args(["-o", "comm=", "-t", &tty])
-        .output()
-    else {
+    let ps = |format: &str| {
+        Command::new("ps")
+            .args(["-o", format, "-t", &tty])
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+    };
+    let (Some(states), Some(args)) = (ps("pid=,stat=,comm="), ps("pid=,args=")) else {
         return false;
     };
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .any(|l| is_claude_command(l.trim()))
+    claude_in_foreground(&states, &args)
 }
 
-/// A process name that's Claude Code: `claude`, the native build (named after
-/// its version, e.g. `2.1.325`), or `node` running the npm package.
-fn is_claude_command(comm: &str) -> bool {
-    let name = comm.rsplit('/').next().unwrap_or(comm);
-    name == "claude"
-        || name == "node"
-        || (name.contains('.')
-            && name
-                .split('.')
-                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())))
+/// `states` is `ps -o pid=,stat=,comm=` output and `args` is `ps -o
+/// pid=,args=` for the same terminal. True if a foreground process (`+` in
+/// its state) is Claude Code.
+fn claude_in_foreground(states: &str, args: &str) -> bool {
+    let args: std::collections::HashMap<&str, &str> = args
+        .lines()
+        .filter_map(|l| l.trim_start().split_once(char::is_whitespace))
+        .map(|(pid, rest)| (pid, rest.trim()))
+        .collect();
+    states.lines().any(|line| {
+        let mut parts = line.trim_start().splitn(3, char::is_whitespace);
+        let (Some(pid), Some(stat)) = (parts.next(), parts.next()) else {
+            return false;
+        };
+        let comm = parts.next().unwrap_or("").trim();
+        stat.contains('+') && is_claude_process(comm, args.get(pid).copied().unwrap_or(""))
+    })
+}
+
+/// A process that's Claude Code: `claude`, the native build (named after its
+/// version, e.g. `2.1.325`), or `node` running the npm package.
+fn is_claude_process(comm: &str, args: &str) -> bool {
+    let base = |s: &str| s.rsplit('/').next().unwrap_or(s).to_owned();
+    let name = base(comm);
+    let is_version = |n: &str| {
+        n.contains('.')
+            && n.split('.')
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    };
+    if name == "claude" || is_version(&name) {
+        return true;
+    }
+    if name == "node" {
+        // Only when the script it runs is Claude Code's, e.g.
+        // `node /opt/homebrew/bin/claude` or `…/@anthropic-ai/claude-code/cli.js`.
+        return args
+            .split_whitespace()
+            .skip(1)
+            .find(|a| !a.starts_with('-'))
+            .is_some_and(|script| {
+                base(script) == "claude" || script.contains("@anthropic-ai/claude-code/")
+            });
+    }
+    false
 }
 
 /// Carry out a plan. Returns a short description for the UI.
@@ -328,15 +365,44 @@ mod tests {
 
     #[test]
     fn recognises_claude_processes() {
-        assert!(is_claude_command("claude"));
-        assert!(is_claude_command(
-            "/Users/me/.local/share/claude/versions/2.1.325"
+        assert!(is_claude_process("claude", "claude"));
+        assert!(is_claude_process(
+            "/Users/me/.local/share/claude/versions/2.1.325",
+            "claude --resume"
         ));
-        assert!(is_claude_command("node"));
-        assert!(!is_claude_command("-zsh"));
-        assert!(!is_claude_command("bash"));
-        assert!(!is_claude_command("vim"));
-        assert!(!is_claude_command("1."));
+        assert!(is_claude_process("node", "node /opt/homebrew/bin/claude"));
+        assert!(is_claude_process(
+            "node",
+            "node --no-warnings /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+        ));
+        // Any other node program is not Claude.
+        assert!(!is_claude_process("node", "node server.js"));
+        assert!(!is_claude_process("node", "node"));
+        assert!(!is_claude_process("-zsh", "-zsh"));
+        assert!(!is_claude_process("bash", "bash"));
+        assert!(!is_claude_process("vim", "vim claude"));
+        assert!(!is_claude_process("1.", "1."));
+    }
+
+    #[test]
+    fn claude_must_be_the_foreground_job() {
+        let args = "11895 -zsh\n26499 claude\n26529 npm exec mcp\n";
+        // Running: Claude is in the foreground group.
+        assert!(claude_in_foreground(
+            "11895 S    -zsh\n26499 S+   claude\n26529 S+   npm exec mcp\n",
+            args
+        ));
+        // Suspended with ^Z: the shell has the terminal; typing would run commands.
+        assert!(!claude_in_foreground(
+            "11895 S+   -zsh\n26499 T    claude\n26529 T    npm exec mcp\n",
+            args
+        ));
+        // A dev server in the foreground after Claude exited.
+        assert!(!claude_in_foreground(
+            "11895 S    -zsh\n30000 S+   node\n",
+            "11895 -zsh\n30000 node server.js\n"
+        ));
+        assert!(!claude_in_foreground("", ""));
     }
 
     /// Really types into a tmux pane (skipped when tmux isn't installed).
