@@ -66,6 +66,33 @@ pub enum Theme {
     #[default]
     Mono,
     Crew,
+    Terminal,
+    Paper,
+    Pixel,
+    Glass,
+}
+
+impl Theme {
+    pub const ALL: [Theme; 6] = [
+        Theme::Mono,
+        Theme::Crew,
+        Theme::Terminal,
+        Theme::Paper,
+        Theme::Pixel,
+        Theme::Glass,
+    ];
+
+    /// The name used in config.json and `agentry config`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Theme::Mono => "mono",
+            Theme::Crew => "crew",
+            Theme::Terminal => "terminal",
+            Theme::Paper => "paper",
+            Theme::Pixel => "pixel",
+            Theme::Glass => "glass",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -256,7 +283,10 @@ impl Config {
             "e.g. CommandOrControl+Alt+A, or \"off\"",
         ),
         ("general.autoUpdate", "true | false"),
-        ("appearance.theme", "mono | crew"),
+        (
+            "appearance.theme",
+            "mono | crew | terminal | paper | pixel | glass",
+        ),
         (
             "appearance.accent",
             "a colour such as #ff7a45, or \"default\"",
@@ -297,10 +327,7 @@ impl Config {
                 .clone()
                 .unwrap_or_else(|| "off".into()),
             "general.autoUpdate" => self.general.auto_update.to_string(),
-            "appearance.theme" => match self.appearance.theme {
-                Theme::Mono => "mono".into(),
-                Theme::Crew => "crew".into(),
-            },
+            "appearance.theme" => self.appearance.theme.name().into(),
             "appearance.accent" => self
                 .appearance
                 .accent
@@ -364,11 +391,11 @@ impl Config {
                 }
             }
             "appearance.theme" => {
-                self.appearance.theme = match v.to_ascii_lowercase().as_str() {
-                    "mono" => Theme::Mono,
-                    "crew" => Theme::Crew,
-                    _ => return Err("appearance.theme must be mono or crew".into()),
-                }
+                let v = v.to_ascii_lowercase();
+                self.appearance.theme = Theme::ALL
+                    .into_iter()
+                    .find(|t| t.name() == v)
+                    .ok_or("appearance.theme must be mono, crew, terminal, paper, pixel or glass")?;
             }
             "appearance.accent" => {
                 self.appearance.accent = if v.eq_ignore_ascii_case("default") || v.is_empty() {
@@ -415,6 +442,19 @@ mod tests {
         assert_eq!(back.get("approvals.timeout").unwrap(), "never");
         assert_eq!(back.get("approvals.tools").unwrap(), "Bash,Write");
         assert_eq!(back.timeout_secs(), MAX_TIMEOUT_SECS);
+    }
+
+    #[test]
+    fn every_theme_round_trips() {
+        let mut c = Config::default();
+        for t in Theme::ALL {
+            c.set("appearance.theme", &t.name().to_uppercase()).unwrap();
+            assert_eq!(c.appearance.theme, t);
+            assert_eq!(c.get("appearance.theme").unwrap(), t.name());
+            // config.json uses the same name.
+            assert_eq!(serde_json::to_value(t).unwrap(), t.name());
+        }
+        assert!(c.set("appearance.theme", "neon").is_err());
     }
 
     #[test]

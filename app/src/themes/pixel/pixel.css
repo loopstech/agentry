@@ -1,0 +1,220 @@
+/* Pixel theme tokens and looks. Structure lives in components.css. */
+
+.theme-pixel,
+.tokens-pixel {
+  --font: "Geist Mono", ui-monospace, Menlo, monospace;
+  --font-pixel: "Silkscreen", "Geist Mono", monospace;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --accent: #ffcd75;
+  --on-accent: #1a1c2c;
+  --surface: #1a1c2c;
+  --surface-2: #262b44;
+  --surface-3: #3a4466;
+  --line: #333c57;
+  --ink: #0d0e18;
+  --text: #f4f4f4;
+  --muted: #a9b4d6; /* 7.4:1 on #262b44 */
+  --faint: #6a76a0;
+  --error: #ff6b6b;
+  --radius-pill: 0;
+  --radius-panel: 0;
+  /* A hard "pixel" outline and a stepped drop shadow, no blur. */
+  --shadow: 0 0 0 3px var(--ink), 6px 6px 0 3px rgba(13, 14, 24, 0.55);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+/* Headings, the pill and buttons use the pixel font. */
+.theme-pixel .panel-title,
+.theme-pixel .pill-strong,
+.theme-pixel .row-title .title,
+.theme-pixel .empty-title,
+.theme-pixel .btn,
+.theme-pixel .row-count {
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.theme-pixel .panel-title {
+  font-size: 16px;
+}
+.theme-pixel .row-title {
+  font-size: 13px;
+}
+.theme-pixel .pill {
+  font-size: 12px;
+}
+
+/* ----- Avatars: sprites ----- */
+.theme-pixel .avatar {
+  display: inline-block;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+.theme-pixel .avatar-md {
+  width: 48px;
+  height: 48px;
+}
+.theme-pixel .avatar-sm {
+  width: 26px;
+  height: 26px;
+  padding: 2px;
+  box-sizing: border-box;
+  background: var(--surface);
+}
+/* Waiting: an accent outline, drawn pixel-hard. */
+.theme-pixel .avatar-waiting svg {
+  filter: drop-shadow(1px 0 0 var(--accent)) drop-shadow(-1px 0 0 var(--accent)) drop-shadow(0 1px 0 var(--accent))
+    drop-shadow(0 -1px 0 var(--accent));
+}
+.theme-pixel .avatar-done {
+  opacity: 0.55;
+  filter: grayscale(0.7);
+}
+.theme-pixel .avatar-error svg {
+  filter: drop-shadow(1px 0 0 var(--error)) drop-shadow(-1px 0 0 var(--error));
+}
+/* Idle animations, in two-frame steps like a sprite sheet. */
+.theme-pixel .avatar-md.avatar-ready .pixel-sprite {
+  animation: pixel-idle 1.6s steps(1) infinite;
+}
+.theme-pixel .avatar-md.avatar-working .pixel-sprite {
+  animation: pixel-idle 0.5s steps(1) infinite;
+}
+.theme-pixel .avatar-md.avatar-waiting .pixel-sprite {
+  animation: pixel-hop 0.9s steps(1) infinite;
+}
+@keyframes pixel-idle {
+  50% {
+    transform: translateY(1px);
+  }
+}
+@keyframes pixel-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  70%,
+  90% {
+    transform: translateY(-1px);
+  }
+  80% {
+    transform: translateY(-2px);
+  }
+}
+
+/* ----- Rows: chunky boxes ----- */
+.theme-pixel .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+.theme-pixel .row {
+  border: 0;
+  background: var(--surface-2);
+  box-shadow: 0 0 0 3px var(--ink);
+}
+.theme-pixel .row-needs {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+.theme-pixel .row-indent {
+  margin-left: 60px;
+}
+.theme-pixel .row-done .row-main,
+.theme-pixel .row-done .row-indent {
+  opacity: 0.6;
+}
+.theme-pixel .row-count {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* ----- Progress: HP blocks ----- */
+.theme-pixel .hp {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  width: fit-content;
+  background: var(--ink);
+}
+.theme-pixel .hp-block {
+  width: 12px;
+  height: 8px;
+  background: var(--surface-3);
+}
+.theme-pixel .hp-block-done {
+  background: var(--accent);
+}
+
+/* ----- Helpers ----- */
+.theme-pixel .helpers {
+  border-left: 3px solid var(--surface-3);
+}
+.theme-pixel .helper-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ----- Buttons, fields and boxes: square, outlined, pressable ----- */
+.theme-pixel .btn {
+  height: 34px;
+  border-radius: 0;
+  font-size: 12px;
+  box-shadow: 0 0 0 3px var(--ink), 3px 3px 0 3px var(--ink);
+}
+.theme-pixel .btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 3px var(--ink);
+}
+.theme-pixel .btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.theme-pixel .btn-link,
+.theme-pixel .btn-ghost {
+  box-shadow: none;
+}
+.theme-pixel .btn-ghost {
+  border: 2px dashed var(--surface-3);
+  border-radius: 0;
+}
+.theme-pixel .icon-button,
+.theme-pixel .icon-button-filled,
+.theme-pixel .message-send {
+  border-radius: 0;
+}
+.theme-pixel .field input,
+.theme-pixel .message-field input,
+.theme-pixel .code,
+.theme-pixel .option,
+.theme-pixel .empty,
+.theme-pixel .toast {
+  border-radius: 0;
+}
+.theme-pixel .field input,
+.theme-pixel .message-field input {
+  border: 3px solid var(--ink);
+  background: var(--surface);
+}
+.theme-pixel .code {
+  background: var(--ink);
+}
+.theme-pixel .bubble {
+  border-radius: 0;
+  box-shadow: 0 0 0 3px var(--ink);
+}
+.theme-pixel .bubble::before {
+  clip-path: polygon(0 0, 0 100%, 100% 100%, 50% 50%);
+}
+.theme-pixel .bubble-typing i {
+  border-radius: 0;
+  animation-timing-function: steps(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-pixel .avatar-md .pixel-sprite {
+    animation: none;
+  }
+}

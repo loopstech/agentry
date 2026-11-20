@@ -1,5 +1,7 @@
 // Mirrors agentry_server::store::Session (serialised camelCase).
 
+export type ThemeId = "mono" | "crew" | "terminal" | "paper" | "pixel" | "glass";
+
 export type Status =
   | "working"
   | "needs_permission"
@@ -81,7 +83,7 @@ export interface Config {
     autoOpen: boolean;
   };
   appearance: {
-    theme: "mono" | "crew";
+    theme: ThemeId;
     /** "#rrggbb", or null for the theme's own accent. */
     accent: string | null;
     hoverToOpen: boolean;

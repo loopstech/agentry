@@ -11,11 +11,17 @@ importers:
       '@fontsource/bricolage-grotesque':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/fraunces':
+        specifier: '5'
+        version: 5.3.0
       '@fontsource/geist-mono':
         specifier: ^5.3.0
         version: 5.3.0
       '@fontsource/geist-sans':
         specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/silkscreen':
+        specifier: '5'
         version: 5.3.0
       '@tauri-apps/api':
         specifier: ^2.0.0
@@ -290,11 +296,17 @@ packages:
   '@fontsource/bricolage-grotesque@5.3.0':
     resolution: {integrity: sha512-MdOVb/5in11IfN/IQJOExMuu6AroCIQbirl0yX7NUvKk+h0HYIKfGaVAXRS/gCPil4aFxWhjZnOw28tUwv7tFw==}
 
+  '@fontsource/fraunces@5.3.0':
+    resolution: {integrity: sha512-LEHTOBiZufQzAvnAe2rZ8ZknbDS28Q9kzwb0L+gZJEmjLGr8hhZ/5NuHXwDuHBWhVXYoiGGXmrb0H6Ko/RrHTg==}
+
   '@fontsource/geist-mono@5.3.0':
     resolution: {integrity: sha512-UtJ1BBBCVpMYdIcW7nEB45UAoAw5M53ZXs2t0ciPW+IokuAAIc56M8+kW5tXbRJCTpDw4XTtU7proT6NdQAHTg==}
 
   '@fontsource/geist-sans@5.3.0':
     resolution: {integrity: sha512-AmG7cE1AvE4NHROPaOl1sN+a02cB5xy6pA/ZV76HXqWTCsJTV2SCBc9DTFHfJqnVOODm7HhXIYtUIb75NP5QXQ==}
+
+  '@fontsource/silkscreen@5.3.0':
+    resolution: {integrity: sha512-M1NQ3LQH0LFNvyFPd/piHEGMImPPtpLglNnLC6Vdcq9kL0jNIOtTQmksAWCc4enbDnw1OnIpZtjNEfRqYm/QmA==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -933,9 +945,13 @@ snapshots:
 
   '@fontsource/bricolage-grotesque@5.3.0': {}
 
+  '@fontsource/fraunces@5.3.0': {}
+
   '@fontsource/geist-mono@5.3.0': {}
 
   '@fontsource/geist-sans@5.3.0': {}
+
+  '@fontsource/silkscreen@5.3.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
