@@ -1,7 +1,8 @@
 # Releasing Agentry
 
 A release is a version tag. Pushing `v0.2.0` makes GitHub Actions build a
-universal (Apple Silicon + Intel) `Agentry.app`, sign and notarise it, and
+universal (Apple Silicon + Intel) `Agentry.app`, sign and notarise it (and
+the DMG, stapled, so it opens without a Gatekeeper check), and
 create a **draft** GitHub Release with `Agentry.dmg`, `SHA256SUMS` and the
 auto-update files. Publishing the draft updates the Homebrew cask.
 
