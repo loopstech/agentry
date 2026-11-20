@@ -177,6 +177,11 @@ All of these were checked against real sessions. Interactive sessions were drive
   - Collapsed, it's a black shape with concave "shoulders" and bottom corners rounded at 14 pt.
   - Each "ear" either side of the notch is 72 pt when sessions exist. The left ear has up to 3 avatars; the right ear has the most important count.
   - Expanded, the panel has square top corners and a black inset collar the notch's height, so Crew's navy starts below the notch.
+- **Staying in front of other apps** (reported: the island vanished when VS Code came to the front).
+  - The level is now `NSMainMenuWindowLevel + 3` (27), as other notch apps use, instead of the status level (25). The Space behaviour clears bits AppKit treats as conflicting with joining every Space (`island_behaviour`, unit-tested).
+  - `macos::float_everywhere` also watches `NSWorkspaceDidActivateApplicationNotification` and `NSWorkspaceActiveSpaceDidChangeNotification`. On each one it re-applies the level and behaviour and calls `orderFrontRegardless` if the island is visible. It logs a warning if something had reset them.
+  - With a Dock icon, the behaviour is set while Agentry is briefly an accessory app, then the policy goes back to regular (Electron does the same for windows that float over full-screen apps). The policy only changes when the setting does.
+  - Not yet confirmed on a Mac. If it still disappears, the next step is turning the island into a non-activating `NSPanel`, which is what most native notch apps use. tao's window class has its own instance variables, so that means building a real panel rather than swapping the class in place.
 - **Checking macOS code from Linux:** `cargo check --target aarch64-apple-darwin` works with a stand-in C compiler for `objc2-exception-helper`'s build script (set `CC_aarch64_apple_darwin` and `AR_aarch64_apple_darwin` to no-op scripts). Nothing is linked, so it only type-checks. The notch code and the existing `objc2` code pass `cargo clippy` for that target.
 - **Not handled yet:**
   - **Screens connected or disconnected while Agentry runs:** notches are measured at launch. Relaunch, or toggle the setting, to pick up a change.

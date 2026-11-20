@@ -83,7 +83,8 @@ A small black pill appears just under the menu bar. Click it to open the panel. 
    - with no sessions it's exactly the notch's size and disappears into it. Clicking the notch still opens the panel.
 2. **Expanded.** Click it, or press ⌥⌘A. The panel drops down from the notch, with a black band under the notch so it blends in (Crew's navy starts below it).
 3. **Setting.** Settings → Appearance → *Attach to the notch* (on by default). Turn it off and the island goes back to floating below the menu bar, draggable, where you last left it.
-4. **External screens.** Drag the island to a screen without a notch (with the setting off), turn the setting back on, and it stays on that screen, floating. Notch mode only applies on the screen that has the notch.
+4. **Other apps in front.** Click into VS Code (or any app), make an app full screen, switch desktops, and turn Stage Manager on if you use it. The island stays at the notch the whole time.
+5. **External screens.** Drag the island to a screen without a notch (with the setting off), turn the setting back on, and it stays on that screen, floating. Notch mode only applies on the screen that has the notch.
 
 Tell me what you see: does the shape line up exactly with your notch (width, height, corners)? Does it cover menu bar items you use next to the notch?
 
