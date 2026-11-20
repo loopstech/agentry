@@ -1,0 +1,507 @@
+/* The website. The widget's own styles come from components.css; these only
+   lay out the page around it. components.css sets html/body for the app's
+   transparent window, so the page resets them first. */
+
+:root {
+  --ink: #17143f;
+  --dusk: #2e2b7a;
+  --iris: #6b5cff;
+  --haze: #ffb8a0;
+  --signal: #ffd23f;
+  --paper: #f6f5fc;
+  --ink-soft: #4a4677;
+  --rule: #dcd9ee;
+  --display: "Bricolage Grotesque", "Geist Sans", system-ui, sans-serif;
+  --body: "Geist Sans", system-ui, -apple-system, sans-serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+  --gutter: clamp(16px, 5vw, 72px);
+  --measure: 34rem;
+}
+
+html,
+body {
+  overflow: visible;
+  overflow-x: clip;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1.125rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--signal);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.88em;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  margin: 0 0.1em;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  margin: 0;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+
+h3 {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+p {
+  margin: 0;
+  max-width: var(--measure);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+  z-index: 10;
+  padding: 8px 14px;
+  background: var(--signal);
+  color: var(--ink);
+  border-radius: 8px;
+}
+.skip:focus {
+  top: 44px;
+}
+
+/* ---------- Hero: the top of a Mac screen ---------- */
+
+.screen {
+  position: relative;
+  min-height: max(100svh, 760px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 var(--gutter) clamp(40px, 7vh, 88px);
+  box-sizing: border-box;
+  color: var(--paper);
+  background:
+    radial-gradient(120% 70% at 70% 118%, var(--haze) 0%, rgba(255, 184, 160, 0) 62%),
+    radial-gradient(90% 60% at 8% 100%, rgba(107, 92, 255, 0.55) 0%, rgba(107, 92, 255, 0) 70%),
+    linear-gradient(180deg, var(--ink) 0%, var(--dusk) 58%, #5a4d9c 100%);
+  overflow: hidden;
+}
+
+.menubar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 18px;
+  font-size: 13px;
+  color: rgba(246, 245, 252, 0.72);
+  background: rgba(23, 20, 63, 0.45);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.menubar-app {
+  font-weight: 600;
+  color: var(--paper);
+}
+.menubar-clock {
+  margin-left: auto;
+}
+
+/* The real widget, attached to the notch at the top centre. Only its shape
+   takes clicks; the rest of its frame lets them through to the page. */
+.hero-widget {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  transform-origin: top center;
+  pointer-events: none;
+}
+.hero-widget .frame {
+  pointer-events: none;
+}
+.hero-widget .island-shape {
+  pointer-events: auto;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  transition: opacity 400ms ease;
+}
+/* The open panel floats over the page, as it floats over your windows. */
+.screen:has(.island-shape.is-expanded) .hero-copy > :not(.hint) {
+  opacity: 0.4;
+}
+
+h1 {
+  max-width: 11ch;
+  font-size: clamp(3.1rem, 8.6vw, 8.2rem);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+
+.lede {
+  font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+  color: rgba(246, 245, 252, 0.84);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.hint {
+  font-size: 0.95rem;
+  color: var(--signal);
+  /* Room for two lines, so a shorter message doesn't shift the hero. */
+  min-height: 3.1em;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 26px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.button-signal {
+  background: var(--signal);
+  color: var(--ink);
+  box-shadow: 0 10px 30px -10px rgba(255, 210, 63, 0.7);
+  transition: transform 160ms ease;
+}
+.button-signal:hover {
+  transform: translateY(-1px);
+}
+.button-signal:active {
+  transform: translateY(1px);
+}
+
+/* ---------- Commands with a copy button ---------- */
+
+.command {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  height: 52px;
+  border-radius: 999px;
+  padding: 0 6px 0 20px;
+  gap: 12px;
+  background: rgba(23, 20, 63, 0.55);
+  border: 1px solid rgba(246, 245, 252, 0.16);
+  box-sizing: border-box;
+}
+.command code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  color: var(--paper);
+}
+.command code::-webkit-scrollbar {
+  display: none;
+}
+.copy {
+  flex: none;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(246, 245, 252, 0.14);
+  color: var(--paper);
+  font: 600 0.9rem var(--body);
+  cursor: pointer;
+}
+.copy:hover {
+  background: rgba(246, 245, 252, 0.24);
+}
+.hero-actions .command {
+  flex: 1 1 18rem;
+  max-width: 40rem;
+}
+
+/* ---------- Features: text beside a screenshot ---------- */
+
+main {
+  display: block;
+}
+
+.features {
+  padding: clamp(72px, 12vw, 160px) var(--gutter) 0;
+  display: grid;
+  gap: clamp(72px, 10vw, 140px);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+}
+.feature:nth-child(odd of .feature) .feature-text {
+  order: 2;
+}
+.feature-text {
+  display: grid;
+  gap: 16px;
+}
+.feature-text p {
+  color: var(--ink-soft);
+}
+
+.features img,
+.safety img,
+.theme-shot img {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  justify-self: center;
+  border-radius: 22px;
+  box-shadow: 0 30px 60px -30px rgba(23, 20, 63, 0.55);
+}
+
+/* ---------- Themes: a dark band, a big-type picker ---------- */
+
+.themes {
+  margin-top: clamp(96px, 14vw, 180px);
+  padding: clamp(72px, 10vw, 128px) var(--gutter);
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(40px, 6vw, 96px);
+}
+.themes > * {
+  max-width: 560px;
+}
+.themes-text {
+  justify-self: end;
+  display: grid;
+  gap: 28px;
+}
+
+.theme-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+}
+.theme-picker button {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: rgba(246, 245, 252, 0.45);
+  font: 800 clamp(1.6rem, 3vw, 2.3rem) / 1.15 var(--display);
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  background-image: linear-gradient(var(--signal), var(--signal));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 4px;
+  transition:
+    color 200ms ease,
+    background-size 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.theme-picker button:hover {
+  color: rgba(246, 245, 252, 0.8);
+}
+.theme-picker button[aria-checked="true"] {
+  color: var(--paper);
+  background-size: 100% 4px;
+}
+.theme-blurb {
+  color: rgba(246, 245, 252, 0.72);
+  min-height: 3.1em;
+}
+.theme-shot img {
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- Safety ---------- */
+
+.safety {
+  padding: clamp(96px, 14vw, 180px) var(--gutter) 0;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+}
+.safety-text {
+  display: grid;
+  gap: 18px;
+}
+.safety-text p {
+  color: var(--ink-soft);
+}
+.safety-text a {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- Install ---------- */
+
+.install {
+  padding: clamp(96px, 14vw, 180px) var(--gutter);
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+.install-note {
+  color: var(--ink-soft);
+}
+.ways {
+  margin: clamp(24px, 4vw, 48px) 0 0;
+  border-top: 2px solid var(--ink);
+}
+.way {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: 12px 32px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.way dt {
+  font: 800 1.35rem / 1.2 var(--display);
+}
+.way dd {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+  color: var(--ink-soft);
+}
+.way .command {
+  background: var(--ink);
+  border-color: var(--ink);
+  max-width: 44rem;
+}
+
+.footer {
+  padding: 32px var(--gutter) 48px;
+  max-width: 1180px;
+  margin: 0 auto;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.footer a {
+  margin-left: 0.5em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ---------- Smaller screens ---------- */
+
+@media (max-width: 900px) {
+  .feature,
+  .safety,
+  .themes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feature:nth-child(odd of .feature) .feature-text {
+    order: 0;
+  }
+  .themes-text {
+    justify-self: start;
+  }
+  .way {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .hero-widget {
+    transform: translateX(-50%) scale(0.8);
+  }
+}
+
+@media (max-width: 600px) {
+  .hero-widget {
+    transform: translateX(-50%) scale(0.64);
+  }
+  .menubar span:not(.menubar-app):not(.menubar-clock) {
+    display: none;
+  }
+  .button,
+  .hero-actions .command {
+    width: 100%;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

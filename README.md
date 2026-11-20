@@ -5,6 +5,9 @@ always-on-top widget for macOS that shows what each of your Claude Code
 sessions is doing. You can approve its requests, answer its questions and
 message it without hunting for the right terminal tab.
 
+**[Try it on the website](https://loopstech.github.io/agentry/)**: the widget
+there is the real one, running in your browser.
+
 <p align="center">
   <img src="docs/images/panel-mono.png" width="520" alt="The Agentry panel: one session asking to run a command, one working through a 5-step task list with two helpers, and one finished, showing Claude's reply">
 </p>
@@ -265,6 +268,7 @@ cargo test --workspace                               # unit and end-to-end tests
 cargo run -p agentry-server --bin agentry-devserver  # headless server; RUST_LOG=debug also logs payload field names
 cd app && pnpm tauri dev                             # the app
 scripts/tests/install-test.sh                        # the install script, against stand-in tools
+cd app && pnpm site                                  # the website (app/site), with the live widget
 ```
 
 - **Separate test locations.** Set `AGENTRY_HOME` and `CLAUDE_CONFIG_DIR` to
@@ -274,6 +278,9 @@ scripts/tests/install-test.sh                        # the install script, again
 - **Linux builds.** Building the app on Linux needs the WebKitGTK development
   packages (see `.github/workflows/ci.yml`).
 - **Releasing.** See [RELEASING.md](RELEASING.md).
+- **Website.** `app/site` is published to GitHub Pages by
+  `.github/workflows/pages.yml` whenever it, the UI or the screenshots change
+  on `main`. Its hero runs the real widget with made-up sessions.
 
 ### Screenshots
 

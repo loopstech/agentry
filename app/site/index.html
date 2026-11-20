@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agentry: every Claude Code session, one glance away</title>
+    <meta
+      name="description"
+      content="A small always-on-top widget for macOS that shows every running Claude Code session. Approve requests, answer questions and message Claude without hunting for the right terminal tab."
+    />
+    <meta property="og:title" content="Agentry" />
+    <meta property="og:description" content="Every Claude Code session, one glance away. A free macOS widget." />
+    <meta name="theme-color" content="#17143f" />
+    <link rel="icon" type="image/png" href="./icon.png" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="screen" aria-label="Agentry, running live">
+      <div class="menubar" aria-hidden="true">
+        <span class="menubar-app">Terminal</span>
+        <span>Shell</span><span>Edit</span><span>View</span><span>Window</span>
+        <span class="menubar-clock" id="clock"></span>
+      </div>
+
+      <div class="hero-widget" id="widget"></div>
+
+      <div class="hero-copy">
+        <h1>Every Claude Code session, one glance away.</h1>
+        <p class="lede">
+          Agentry is a small widget that lives in your Mac's notch. It shows what each Claude Code session is doing,
+          and lets you approve, answer and message Claude without hunting for the right terminal tab.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-signal" href="https://github.com/loopstech/agentry/releases/latest">Download for Mac</a>
+          <div class="command" data-copy>
+            <code>curl -fsSL https://raw.githubusercontent.com/loopstech/agentry/main/scripts/install.sh | sh</code>
+            <button type="button" class="copy">Copy</button>
+          </div>
+        </div>
+        <p class="hint" id="hint">The widget up there is the real one, running in this page. When Claude asks, press Allow.</p>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="features" aria-labelledby="features-title">
+        <h2 id="features-title" class="visually-hidden">What Agentry does</h2>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>Approve without switching windows</h3>
+            <p>
+              When Claude wants to run a command or change a file, the request drops out of the notch with the whole
+              command or diff. Allow it with a click or <kbd>⌘</kbd><kbd>↵</kbd>. The terminal can still answer, and
+              whichever is first wins.
+            </p>
+          </div>
+          <img src="../../docs/images/panel-mono.png" width="584" height="659" loading="lazy"
+            alt="The panel with a request to run pnpm test, a session working through a task list, and a finished session showing Claude's reply" />
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>Answer Claude's questions</h3>
+            <p>When Claude asks you to choose, the options appear in the panel. Pick one and Claude carries on.</p>
+          </div>
+          <img src="../../docs/images/question-mono.png" width="584" height="582" loading="lazy"
+            alt="A question card asking who the release notes are for, with three options" />
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <h3>See what it's been doing</h3>
+            <p>
+              Click a session to read its recent steps: your prompt, Claude's replies, and every tool call, ticked or
+              crossed as it finishes. Then jump straight to its terminal tab, tmux pane or editor window.
+            </p>
+          </div>
+          <img src="../../docs/images/transcript-mono.png" width="584" height="471" loading="lazy"
+            alt="A session's recent steps with Grep, Edit and Bash calls marked done, failed and running" />
+        </article>
+      </section>
+
+      <section class="themes" aria-labelledby="themes-title">
+        <div class="themes-text">
+          <h2 id="themes-title">Six looks. Pick one and the widget at the top changes too.</h2>
+          <div class="theme-picker" role="radiogroup" aria-label="Theme">
+            <button type="button" role="radio" aria-checked="true" data-theme="mono">Mono</button>
+            <button type="button" role="radio" aria-checked="false" data-theme="crew">Crew</button>
+            <button type="button" role="radio" aria-checked="false" data-theme="terminal">Terminal</button>
+            <button type="button" role="radio" aria-checked="false" data-theme="paper">Paper</button>
+            <button type="button" role="radio" aria-checked="false" data-theme="pixel">Pixel</button>
+            <button type="button" role="radio" aria-checked="false" data-theme="glass">Glass</button>
+          </div>
+          <p class="theme-blurb" id="theme-blurb" aria-live="polite">Black and quiet, with one accent colour.</p>
+        </div>
+        <div class="theme-shot">
+          <img id="theme-img" src="../../docs/images/panel-mono.png" width="584" height="659" alt="The Mono theme" />
+        </div>
+      </section>
+
+      <section class="safety" aria-labelledby="safety-title">
+        <img src="../../docs/images/warning-mono.png" width="584" height="447" loading="lazy"
+          alt="A request whose hidden characters and blank-line padding are revealed, with a warning" />
+        <div class="safety-text">
+          <h2 id="safety-title">You see exactly what you approve.</h2>
+          <p>
+            Allow approves the whole request, so Agentry shows all of it. Long commands scroll, padding is folded away,
+            and invisible or right-to-left characters are spelled out. Anything too long to show can only be answered
+            in the terminal.
+          </p>
+          <p>
+            If Agentry isn't running, Claude Code works exactly as it did before. Nothing leaves your Mac: the widget
+            talks to a hook over <code>127.0.0.1</code>, and there's no telemetry.
+          </p>
+          <p><a href="https://github.com/loopstech/agentry/blob/main/SECURITY.md">How Agentry keeps you safe</a></p>
+        </div>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <h2 id="install-title">Install Agentry</h2>
+        <p class="install-note">Free and open source. Needs macOS 12 or later and Claude Code.</p>
+        <dl class="ways">
+          <div class="way">
+            <dt>Install script</dt>
+            <dd>
+              <p>Checks the download's checksum and signature, then asks before connecting to Claude Code.</p>
+              <div class="command" data-copy>
+                <code>curl -fsSL https://raw.githubusercontent.com/loopstech/agentry/main/scripts/install.sh | sh</code>
+                <button type="button" class="copy">Copy</button>
+              </div>
+            </dd>
+          </div>
+          <div class="way">
+            <dt>Homebrew</dt>
+            <dd>
+              <div class="command" data-copy>
+                <code>brew install --cask loopstech/tap/agentry</code>
+                <button type="button" class="copy">Copy</button>
+              </div>
+            </dd>
+          </div>
+          <div class="way">
+            <dt>Download</dt>
+            <dd>
+              <p>
+                Get <a href="https://github.com/loopstech/agentry/releases/latest">Agentry.dmg</a> and drag Agentry to
+                Applications. On first launch it offers to connect to Claude Code, backing up your settings first.
+              </p>
+            </dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>
+        Agentry is made by Loops Tech and released under the MIT license.
+        <a href="https://github.com/loopstech/agentry">Source on GitHub</a>
+      </p>
+    </footer>
+
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
