@@ -69,7 +69,7 @@ function permission(now: number, p: Partial<Pending>): Pending {
   };
 }
 
-const bash = (now: number) =>
+export const bash = (now: number) =>
   session(now, {
     id: "s-login",
     title: "Fix the flaky login test",
@@ -87,7 +87,7 @@ const bash = (now: number) =>
     ],
   });
 
-const working = (now: number) =>
+export const working = (now: number) =>
   session(now, {
     id: "s-dark",
     title: "Add dark mode to Settings",
@@ -123,7 +123,7 @@ const working = (now: number) =>
     ],
   });
 
-const ready = (now: number, talk = true) =>
+export const ready = (now: number, talk = true) =>
   session(now, {
     id: "s-stripe",
     title: "Move payments to the new API",
@@ -135,7 +135,7 @@ const ready = (now: number, talk = true) =>
     said: "Done. Checkout and refunds now use the new API, and all 48 tests pass. Want me to remove the old client?",
   });
 
-const question = (now: number) =>
+export const question = (now: number) =>
   session(now, {
     id: "s-docs",
     title: "Write the 2.0 release notes",
@@ -169,7 +169,7 @@ const question = (now: number) =>
     ],
   });
 
-const suspicious = (now: number) =>
+export const suspicious = (now: number) =>
   session(now, {
     id: "s-sus",
     title: "Tidy up the build scripts",
