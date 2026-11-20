@@ -10,7 +10,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "agentry-app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "agentry-core",
  "agentry-server",
@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "agentry-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "agentry-core",
  "anyhow",
@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "agentry-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "getrandom 0.3.4",
  "serde",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "agentry-hook"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "agentry-core",
  "agentry-server",
@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "agentry-server"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "agentry-core",
  "anyhow",
