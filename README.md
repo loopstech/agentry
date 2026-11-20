@@ -9,7 +9,7 @@ A small always-on-top macOS widget that shows every running Claude Code session.
 **Install script** (downloads the latest release, checks its checksum, installs the app and the `agentry` command, and asks before connecting to Claude Code):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/loopstech/Agentry/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/loopstech/agentry/main/scripts/install.sh | sh
 ```
 
 **Homebrew:**
@@ -18,7 +18,7 @@ curl -fsSL https://raw.githubusercontent.com/loopstech/Agentry/main/scripts/inst
 brew install --cask loopstech/tap/agentry
 ```
 
-**Download:** grab `Agentry.dmg` from [Releases](https://github.com/loopstech/Agentry/releases) and drag Agentry to Applications.
+**Download:** grab `Agentry.dmg` from [Releases](https://github.com/loopstech/agentry/releases) and drag Agentry to Applications.
 
 On first launch a welcome screen offers to **Connect to Claude Code**: it adds Agentry's hooks to `~/.claude/settings.json`, backing the file up first. You can also install the `agentry` command and choose a look there.
 
@@ -56,7 +56,7 @@ If the app isn't running, the hook exits immediately and silently, so Claude Cod
 You need the Xcode Command Line Tools, Rust (via [rustup](https://rustup.rs)), Node 20+ and pnpm (`npm i -g pnpm`).
 
 ```sh
-git clone https://github.com/loopstech/Agentry && cd Agentry
+git clone https://github.com/loopstech/agentry && cd agentry
 git checkout claude/upbeat-sagan-igll5h
 
 # 1. Build the hook and the CLI
@@ -69,7 +69,7 @@ cd app && pnpm install && pnpm tauri dev
 In a second terminal:
 
 ```sh
-cd Agentry
+cd agentry
 ./target/release/agentry hooks install   # backs up ~/.claude/settings.json first
 ./target/release/agentry doctor          # everything should be ✓
 ```
