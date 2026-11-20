@@ -32,7 +32,7 @@ jobs:
           if [ -n "$TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
           else echo "::notice::HOMEBREW_TAP_TOKEN isn't set; skipping the Homebrew cask update"; fi
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.check.outputs.ok == 'true'
 
       - name: Checksum from the release
@@ -45,7 +45,7 @@ jobs:
           echo "sha256=$(awk '/Agentry.dmg/ {print $1}' SHA256SUMS)" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.check.outputs.ok == 'true'
         with:
           repository: ${{ env.TAP }}
